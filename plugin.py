@@ -18,7 +18,6 @@ class AnowPanelMainScreen(Screen):
         <eLabel position="0,0" size="1100,650" backgroundColor="#0f172a" zPosition="-1" />
         <eLabel position="5,5" size="1090,640" backgroundColor="#1e293b" zPosition="0" />
         
-        # 
         <eLabel position="20,20" size="1060,60" backgroundColor="#0f172a" />
         <widget name="title_label" position="30,25" size="1040,50" font="Regular; 26" halign="center" valign="center" foregroundColor="#22c55e" backgroundColor="#0f172a" transparent="1" />
         
@@ -44,7 +43,8 @@ class AnowPanelMainScreen(Screen):
         self.current_menu = "main"
         self["menu_list"] = MenuList([])
         
-        self["actions"] = ActionMap(["OkCancelActions"], {
+        # استخدام مجالات الأكوام القياسية المتوافقة مع بايثون 3 وصور OpenATV الحديثة
+        self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
             "ok": self.ok_pressed,
             "cancel": self.cancel_pressed
         }, -1)
@@ -107,7 +107,7 @@ class AnowPanelMainScreen(Screen):
         if self.current_menu == "main":
             if selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
-                self["title_label"].setText("قسم: %s" % selection_name)
+                self["title_label"].setText("قسم: {}".format(selection_name))
                 self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
                 self["menu_list"].setList(self.menu_data[selection_target])
         else:
@@ -117,7 +117,7 @@ class AnowPanelMainScreen(Screen):
         self.session.openWithCallback(
             self.command_finished, 
             MessageBox, 
-            ("جاري تشغيل السكريبت بالخلفية:\n%s\n\nيرجى الانتظار قليلاً..." % name), 
+            "جاري تشغيل السكريبت بالخلفية:\n{}\n\nيرجى الانتظار قليلاً...".format(name), 
             MessageBox.TYPE_INFO, 
             timeout=5
         )
