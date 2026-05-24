@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# anow panel for Enigma2 (Python 3 Compatible)
-# المصدر: القراءة الديناميكية المباشرة من رابط GitHub الخاص بك لصور الـ py3
+# anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
+# المصدر: القراءة الديناميكية من GitHub بتصميم احترافي متطور
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -9,15 +9,25 @@ from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Components.Console import Console
 from Screens.MessageBox import MessageBox
-import urllib.request  # المكتبة المتوافقة مع بايثون 3
+import urllib.request
 
 class AnowPanelMainScreen(Screen):
+    # تصميم احترافي مودرن (فول اتش دي FHD 1920x1080) متناسق ومريح للعين
     skin = """
-    <screen position="center,center" size="780,560" title="anow panel v1.0 (Py3)">
-        <widget name="title_label" position="15,15" size="750,40" font="Regular; 22" halign="center" valign="center" foregroundColor="#00FF00" />
-        <widget name="menu_list" position="15,70" size="750,420" scrollbarMode="showOnDemand" font="Regular; 20" itemHeight="35" />
-        <eLabel position="15,505" size="750,2" backgroundColor="#555555" />
-        <widget name="hint_label" position="15,515" size="750,30" font="Regular; 16" halign="left" valign="center" foregroundColor="#aaaaaa" />
+    <screen position="center,center" size="1100,650" title="anow panel v1.0" backgroundColor="#0f172a" flags="wfNoBorder">
+        <eLabel position="0,0" size="1100,650" backgroundColor="#0f172a" zPosition="-1" />
+        <eLabel position="5,5" size="1090,640" backgroundColor="#1e293b" zPosition="0" />
+        
+        # 
+        <eLabel position="20,20" size="1060,60" backgroundColor="#0f172a" />
+        <widget name="title_label" position="30,25" size="1040,50" font="Regular; 26" halign="center" valign="center" foregroundColor="#22c55e" backgroundColor="#0f172a" transparent="1" />
+        
+        <eLabel position="20,90" size="1060,3" backgroundColor="#06b6d4" />
+        
+        <widget name="menu_list" position="30,110" size="1040,440" scrollbarMode="showOnDemand" font="Regular; 23" itemHeight="45" foregroundColor="#ffffff" backgroundColor="#1e293b" selectionColor="#06b6d4" selectionForegroundColor="#ffffff" transparent="1" />
+        
+        <eLabel position="20,565" size="1060,2" backgroundColor="#334155" />
+        <widget name="hint_label" position="30,580" size="1040,40" font="Regular; 18" halign="left" valign="center" foregroundColor="#94a3b8" backgroundColor="#1e293b" transparent="1" />
     </screen>
     """
 
@@ -26,8 +36,8 @@ class AnowPanelMainScreen(Screen):
         self.session = session
         self.console = Console()
         
-        self["title_label"] = Label("anow panel - جاري جلب البيانات...")
-        self["hint_label"] = Label("يرجى الانتظار حتى يتم تحميل الأوامر من السيرفر...")
+        self["title_label"] = Label("anow panel — جاري سحب البيانات من السيرفر...")
+        self["hint_label"] = Label("يرجى الانتظار ثواني...")
         
         self.menu_data = {}
         self.main_menu = []
@@ -39,16 +49,13 @@ class AnowPanelMainScreen(Screen):
             "cancel": self.cancel_pressed
         }, -1)
         
-        # استدعاء دالة جلب البيانات بعد اكتمال واجهة البلجن
         self.onLayoutFinish.append(self.fetch_github_data)
 
     def fetch_github_data(self):
         url = "https://raw.githubusercontent.com/anow2008/ajpanel_cmd/refs/heads/main/ajpanel_cmd"
         try:
-            # إعداد الطلب وتحديد نوع المتصفح (User-Agent) لتفادي الحجب
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=10) as response:
-                # قراءة البيانات وعمل Decode لتحويل البايتات إلى نصوص بايثون 3
                 content = response.read().decode('utf-8', errors='ignore')
             
             lines = content.split('\n')
@@ -60,7 +67,6 @@ class AnowPanelMainScreen(Screen):
                 if not line:
                     continue
                 
-                # التعرف على الأقسام الرئيسية في ملف المصدر
                 if "★★★" in line and "||" in line:
                     clean_section = line.replace("————★★★|", "").replace("|★★★————", "").strip()
                     current_section = clean_section
@@ -72,7 +78,6 @@ class AnowPanelMainScreen(Screen):
                     self.menu_data[current_section] = []
                     self.main_menu.append((current_section, current_section))
                 
-                # التعرف على الأوامر والأسماء تحت كل قسم
                 elif current_section:
                     if line.startswith("★★★") and line.endswith("★★★"):
                         current_item_name = line.replace("★★★", "").strip()
@@ -83,15 +88,13 @@ class AnowPanelMainScreen(Screen):
                     elif line.startswith("OpenATV") or line.startswith("openpli"):
                         current_item_name = line
             
-            # عرض البيانات على الشاشة بعد المعالجة بنجاح
             self["menu_list"].setList(self.main_menu)
-            self["title_label"].setText("القائمة الرئيسية للبانل")
-            self["hint_label"].setText("اضغط OK للدخول، أو Cancel للخروج")
+            self["title_label"].setText("ANOW PANEL — القائمة الرئيسية")
+            self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             
         except Exception as e:
-            # في حال حدوث خطأ في الاتصال بالإنترنت
-            self["title_label"].setText("فشل الاتصال بالسيرفر!")
-            self["hint_label"].setText("تأكد من اتصال الإنترنت بالرسيفر وأعد المحاولة.")
+            self["title_label"].setText("❌ فشل الاتصال بالسيرفر وجلب البيانات!")
+            self["hint_label"].setText("تأكد من وجود إنترنت نشط في الرسيفر ثم أعد فتح البانل.")
 
     def ok_pressed(self):
         selected = self["menu_list"].getCurrent()
@@ -102,34 +105,32 @@ class AnowPanelMainScreen(Screen):
         selection_target = selected[1]
 
         if self.current_menu == "main":
-            # فتح القسم الفرعي وجلب الأوامر الخاصة به
             if selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
-                self["title_label"].setText(selection_name)
-                self["hint_label"].setText("اضغط OK لتنفيذ الأمر، أو Cancel للعودة")
+                self["title_label"].setText("قسم: %s" % selection_name)
+                self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
                 self["menu_list"].setList(self.menu_data[selection_target])
         else:
-            # تنفيذ السكربت أو الأمر في الخلفية
             self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
         self.session.openWithCallback(
             self.command_finished, 
             MessageBox, 
-            ("جاري تنفيذ: %s\nيرجى الانتظار..." % name), 
+            ("جاري تشغيل السكريبت بالخلفية:\n%s\n\nيرجى الانتظار قليلاً..." % name), 
             MessageBox.TYPE_INFO, 
-            timeout=4
+            timeout=5
         )
         self.console.execute(cmd)
 
     def command_finished(self, answer=None):
-        self.session.open(MessageBox, "تم تنفيذ السكربت بنجاح!", MessageBox.TYPE_INFO, timeout=3)
+        self.session.open(MessageBox, "✅ تم تنفيذ السكريبت والأمر بنجاح!", MessageBox.TYPE_INFO, timeout=3)
 
     def cancel_pressed(self):
         if self.current_menu == "sub":
             self.current_menu = "main"
-            self["title_label"].setText("القائمة الرئيسية للبانل")
-            self["hint_label"].setText("اضغط OK للدخول، أو Cancel للخروج")
+            self["title_label"].setText("ANOW PANEL — القائمة الرئيسية")
+            self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             self["menu_list"].setList(self.main_menu)
         else:
             self.close()
@@ -140,7 +141,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel", 
-        description="لوحة تحكم ديناميكية متوافقة مع صور Python 3 لقراءة وتنفيذ أوامرك من GitHub", 
+        description="لوحة التحكم الذكية والإصدار الاحترافي المطور لـ anow2008", 
         whereabouts=PluginDescriptor.WHERE_PLUGINMENU, 
         icon="plugin.png", 
         fnc=main
