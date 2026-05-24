@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
-# anow panel for Enigma2
-# المصدر: القراءة الديناميكية المباشرة من رابط GitHub الخاص بك
+# anow panel for Enigma2 (Python 3 Compatible)
+# المصدر: القراءة الديناميكية المباشرة من رابط GitHub الخاص بك لصور الـ py3
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -9,11 +9,11 @@ from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Components.Console import Console
 from Screens.MessageBox import MessageBox
-import urllib2 # أو استخدام requests/twisted لجلب الرابط بالخلفية
+import urllib.request  # المكتبة المتوافقة مع بايثون 3
 
 class AnowPanelMainScreen(Screen):
     skin = """
-    <screen position="center,center" size="780,560" title="anow panel v1.0">
+    <screen position="center,center" size="780,560" title="anow panel v1.0 (Py3)">
         <widget name="title_label" position="15,15" size="750,40" font="Regular; 22" halign="center" valign="center" foregroundColor="#00FF00" />
         <widget name="menu_list" position="15,70" size="750,420" scrollbarMode="showOnDemand" font="Regular; 20" itemHeight="35" />
         <eLabel position="15,505" size="750,2" backgroundColor="#555555" />
@@ -39,18 +39,18 @@ class AnowPanelMainScreen(Screen):
             "cancel": self.cancel_pressed
         }, -1)
         
-        # استدعاء دالة قراءة الرابط عند فتح البانل
+        # استدعاء دالة جلب البيانات بعد اكتمال واجهة البلجن
         self.onLayoutFinish.append(self.fetch_github_data)
 
     def fetch_github_data(self):
         url = "https://raw.githubusercontent.com/anow2008/ajpanel_cmd/refs/heads/main/ajpanel_cmd"
         try:
-            # فتح وقراءة الرابط المباشر الخاص بك
-            req = urllib2.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            response = urllib2.urlopen(req, timeout=8)
-            content = response.read()
+            # إعداد الطلب وتحديد نوع المتصفح (User-Agent) لتفادي الحجب
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                # قراءة البيانات وعمل Decode لتحويل البايتات إلى نصوص بايثون 3
+                content = response.read().decode('utf-8', errors='ignore')
             
-            # معالجة الملف وتقسيمه لأقسام وأوامر بنفس ترتيبك
             lines = content.split('\n')
             current_section = None
             current_item_name = ""
@@ -60,7 +60,7 @@ class AnowPanelMainScreen(Screen):
                 if not line:
                     continue
                 
-                # التعرف على الأقسام الرئيسية في ملفك
+                # التعرف على الأقسام الرئيسية في ملف المصدر
                 if "★★★" in line and "||" in line:
                     clean_section = line.replace("————★★★|", "").replace("|★★★————", "").strip()
                     current_section = clean_section
@@ -79,18 +79,19 @@ class AnowPanelMainScreen(Screen):
                     elif line.startswith("opkg") or line.startswith("wget") or line.startswith("rm") or line.startswith("init") or line.startswith("cd"):
                         name = current_item_name if current_item_name else line
                         self.menu_data[current_section].append((name, line))
-                        current_item_name = "" # تفريغ الاسم للأمر التالي
+                        current_item_name = ""
                     elif line.startswith("OpenATV") or line.startswith("openpli"):
                         current_item_name = line
             
-            # تحديث الواجهة بعد نجاح الجلب
+            # عرض البيانات على الشاشة بعد المعالجة بنجاح
             self["menu_list"].setList(self.main_menu)
             self["title_label"].setText("القائمة الرئيسية للبانل")
             self["hint_label"].setText("اضغط OK للدخول، أو Cancel للخروج")
             
         except Exception as e:
+            # في حال حدوث خطأ في الاتصال بالإنترنت
             self["title_label"].setText("فشل الاتصال بالسيرفر!")
-            self["hint_label"].setText("تأكد من اتصال الإنترنت بالرسيفر.")
+            self["hint_label"].setText("تأكد من اتصال الإنترنت بالرسيفر وأعد المحاولة.")
 
     def ok_pressed(self):
         selected = self["menu_list"].getCurrent()
@@ -101,14 +102,14 @@ class AnowPanelMainScreen(Screen):
         selection_target = selected[1]
 
         if self.current_menu == "main":
-            # فتح القسم الفرعي وجلب أوامره من البيانات المقروءة من الرابط
+            # فتح القسم الفرعي وجلب الأوامر الخاصة به
             if selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
                 self["title_label"].setText(selection_name)
                 self["hint_label"].setText("اضغط OK لتنفيذ الأمر، أو Cancel للعودة")
                 self["menu_list"].setList(self.menu_data[selection_target])
         else:
-            # تنفيذ الأمر المختار في الخلفية
+            # تنفيذ السكربت أو الأمر في الخلفية
             self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
@@ -139,7 +140,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel", 
-        description="لوحة تحكم ديناميكية متصلة مباشرة بملف أوامرك على GitHub", 
+        description="لوحة تحكم ديناميكية متوافقة مع صور Python 3 لقراءة وتنفيذ أوامرك من GitHub", 
         whereabouts=PluginDescriptor.WHERE_PLUGINMENU, 
         icon="plugin.png", 
         fnc=main
