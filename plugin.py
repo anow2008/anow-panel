@@ -43,7 +43,6 @@ class AnowPanelMainScreen(Screen):
         self.current_menu = "main"
         self["menu_list"] = MenuList([])
         
-        # استخدام مجالات الأكوام القياسية المتوافقة مع بايثون 3 وصور OpenATV الحديثة
         self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
             "ok": self.ok_pressed,
             "cancel": self.cancel_pressed
@@ -142,7 +141,7 @@ def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel", 
         description="لوحة التحكم الذكية والإصدار الاحترافي المطور لـ anow2008", 
-        whereabouts=PluginDescriptor.WHERE_PLUGINMENU, 
+        where=PluginDescriptor.WHERE_PLUGINMENU, 
         icon="plugin.png", 
         fnc=main
     )
