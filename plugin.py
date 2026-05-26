@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
-# المصدر: القراءة الديناميكية من GitHub بتصميم احترافي متطور
+# تم إصلاح أبعاد الـ Skin لتظهر القوائم والنصوص بوضوح 100% على OpenATV
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -12,21 +12,21 @@ from Screens.MessageBox import MessageBox
 import urllib.request
 
 class AnowPanelMainScreen(Screen):
-    # تصميم احترافي مودرن (فول اتش دي FHD 1920x1080) متناسق ومريح للعين
+    # تم إعادة ضبط الأبعاد (Skin) لضمان ظهور النصوص والقوائم داخل المربعات تماماً
     skin = """
     <screen position="center,center" size="1100,650" title="anow panel v1.0" backgroundColor="#0f172a" flags="wfNoBorder">
         <eLabel position="0,0" size="1100,650" backgroundColor="#0f172a" zPosition="-1" />
         <eLabel position="5,5" size="1090,640" backgroundColor="#1e293b" zPosition="0" />
         
         <eLabel position="20,20" size="1060,60" backgroundColor="#0f172a" />
-        <widget name="title_label" position="30,25" size="1040,50" font="Regular; 26" halign="center" valign="center" foregroundColor="#22c55e" backgroundColor="#0f172a" transparent="1" />
+        <widget name="title_label" position="30,25" size="1040,50" font="Regular; 24" halign="center" valign="center" foregroundColor="#22c55e" backgroundColor="#0f172a" transparent="1" zPosition="2" />
         
         <eLabel position="20,90" size="1060,3" backgroundColor="#06b6d4" />
         
-        <widget name="menu_list" position="30,110" size="1040,440" scrollbarMode="showOnDemand" font="Regular; 23" itemHeight="45" foregroundColor="#ffffff" backgroundColor="#1e293b" selectionColor="#06b6d4" selectionForegroundColor="#ffffff" transparent="1" />
+        <widget name="menu_list" position="40,110" size="1020,440" scrollbarMode="showOnDemand" font="Regular; 22" itemHeight="45" foregroundColor="#ffffff" backgroundColor="#1e293b" selectionColor="#06b6d4" selectionForegroundColor="#ffffff" transparent="0" zPosition="2" />
         
         <eLabel position="20,565" size="1060,2" backgroundColor="#334155" />
-        <widget name="hint_label" position="30,580" size="1040,40" font="Regular; 18" halign="left" valign="center" foregroundColor="#94a3b8" backgroundColor="#1e293b" transparent="1" />
+        <widget name="hint_label" position="30,580" size="1040,40" font="Regular; 18" halign="left" valign="center" foregroundColor="#94a3b8" backgroundColor="#1e293b" transparent="1" zPosition="2" />
     </screen>
     """
 
@@ -66,34 +66,35 @@ class AnowPanelMainScreen(Screen):
                 if not line:
                     continue
                 
-                if "★★★" in line and "||" in line:
-                    clean_section = line.replace("————★★★|", "").replace("|★★★————", "").strip()
-                    current_section = clean_section
-                    self.menu_data[current_section] = []
-                    self.main_menu.append((current_section, current_section))
-                elif "————●●★::|" in line:
-                    clean_section = line.replace("————●●★::|", "").replace("|::★●●————", "").replace("|::★●●", "").strip()
-                    current_section = clean_section
-                    self.menu_data[current_section] = []
-                    self.main_menu.append((current_section, current_section))
+                # قراءة مرنة ومضمونة للأقسام
+                if any(x in line for x in ["★", "●", "||", "————"]):
+                    clean_section = line.replace("————", "").replace("★★★", "").replace("●●", "").replace("★", "").replace("::", "").replace("|", "").strip()
+                    if clean_section:
+                        current_section = clean_section
+                        if current_section not in self.menu_data:
+                            self.menu_data[current_section] = []
+                            self.main_menu.append((current_section, current_section))
+                    continue
                 
-                elif current_section:
-                    if line.startswith("★★★") and line.endswith("★★★"):
-                        current_item_name = line.replace("★★★", "").strip()
-                    elif line.startswith("opkg") or line.startswith("wget") or line.startswith("rm") or line.startswith("init") or line.startswith("cd"):
+                if current_section:
+                    if any(line.startswith(cmd) for cmd in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
                         name = current_item_name if current_item_name else line
                         self.menu_data[current_section].append((name, line))
                         current_item_name = ""
-                    elif line.startswith("OpenATV") or line.startswith("openpli"):
+                    else:
                         current_item_name = line
-            
-            self["menu_list"].setList(self.main_menu)
-            self["title_label"].setText("ANOW PANEL — القائمة الرئيسية")
-            self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
+
+            if self.main_menu:
+                self["menu_list"].setList(self.main_menu)
+                self["title_label"].setText("ANOW PANEL — القائمة الرئيسية")
+                self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
+            else:
+                self["title_label"].setText("⚠ تم جلب الملف ولكنه فارغ أو منسق بشكل خاطئ")
+                self["hint_label"].setText("تأكد من وجود أقسام وأوامر داخل ملف ajpanel_cmd")
             
         except Exception as e:
             self["title_label"].setText("❌ فشل الاتصال بالسيرفر وجلب البيانات!")
-            self["hint_label"].setText("تأكد من وجود إنترنت نشط في الرسيفر ثم أعد فتح البانل.")
+            self["hint_label"].setText(str(e))
 
     def ok_pressed(self):
         selected = self["menu_list"].getCurrent()
