@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
-# تم إصلاح كراش تنفيذ الأوامر المتوافق مع بايثون 3 وصور OpenATV
+# تم حل مشكلة الـ TypeError وفصل الأمر عن الاسم بنجاح لصور OpenATV
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -77,6 +77,7 @@ class AnowPanelMainScreen(Screen):
                 if current_section:
                     if any(line.startswith(cmd) for cmd in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
                         name = current_item_name if current_item_name else line
+                        # حفظ البيانات كـ Tuple (الاسم المعروض، الأمر الحقيقي للينكس)
                         self.menu_data[current_section].append((name, line))
                         current_item_name = ""
                     else:
@@ -99,6 +100,7 @@ class AnowPanelMainScreen(Screen):
         if not selected:
             return
 
+        # هنا تم الإصلاح: selected يعيد التوبل الحالي المختار من القائمة
         selection_name = selected[0]
         selection_target = selected[1]
 
@@ -109,19 +111,22 @@ class AnowPanelMainScreen(Screen):
                 self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
                 self["menu_list"].setList(self.menu_data[selection_target])
         else:
-            self.execute_command(selection_name, selection_target)
+            # داخل القائمة الفرعية، الاختيار يحتوي على (اسم السكريبت، أمر اللينكس النصي)
+            # نقوم بتمرير السلسلة النصية الصافية للأمر هنا
+            self.execute_command(str(selection_name), str(selection_target))
 
     def execute_command(self, name, cmd):
-        # تم تبسيط الرسالة وتجنب صياغة النصوص المعقدة لمنع الكراش نهائياً
-        msg_text = "جاري تنفيذ الأمر الحالي بالخلفية...\nيرجى الانتظار ثواني."
+        # صياغة آمنة للرسالة بدون تداخل كائنات بايثون
+        msg_text = "جاري تشغيل السكريبت بالخلفية:\n" + name + "\n\nيرجى الانتظار ثواني..."
         self.session.openWithCallback(
             self.command_finished, 
             MessageBox, 
             msg_text, 
             MessageBox.TYPE_INFO, 
-            timeout=3
+            timeout=4
         )
-        self.console.execute(str(cmd))
+        # تنفيذ الأمر النصي الصافي في التلنت بالخلفية
+        self.console.execute(cmd)
 
     def command_finished(self, answer=None):
         self.session.open(MessageBox, "✅ تم إرسال الأمر للنظام بنجاح!", MessageBox.TYPE_INFO, timeout=3)
