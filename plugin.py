@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
-# تم إصلاح أبعاد الـ Skin لتظهر القوائم والنصوص بوضوح 100% على OpenATV
+# تم إصلاح كراش تنفيذ الأوامر المتوافق مع بايثون 3 وصور OpenATV
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -12,7 +12,6 @@ from Screens.MessageBox import MessageBox
 import urllib.request
 
 class AnowPanelMainScreen(Screen):
-    # تم إعادة ضبط الأبعاد (Skin) لضمان ظهور النصوص والقوائم داخل المربعات تماماً
     skin = """
     <screen position="center,center" size="1100,650" title="anow panel v1.0" backgroundColor="#0f172a" flags="wfNoBorder">
         <eLabel position="0,0" size="1100,650" backgroundColor="#0f172a" zPosition="-1" />
@@ -66,7 +65,6 @@ class AnowPanelMainScreen(Screen):
                 if not line:
                     continue
                 
-                # قراءة مرنة ومضمونة للأقسام
                 if any(x in line for x in ["★", "●", "||", "————"]):
                     clean_section = line.replace("————", "").replace("★★★", "").replace("●●", "").replace("★", "").replace("::", "").replace("|", "").strip()
                     if clean_section:
@@ -107,24 +105,26 @@ class AnowPanelMainScreen(Screen):
         if self.current_menu == "main":
             if selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
-                self["title_label"].setText("قسم: {}".format(selection_name))
+                self["title_label"].setText("قسم: " + str(selection_name))
                 self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
                 self["menu_list"].setList(self.menu_data[selection_target])
         else:
             self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
+        # تم تبسيط الرسالة وتجنب صياغة النصوص المعقدة لمنع الكراش نهائياً
+        msg_text = "جاري تنفيذ الأمر الحالي بالخلفية...\nيرجى الانتظار ثواني."
         self.session.openWithCallback(
             self.command_finished, 
             MessageBox, 
-            "جاري تشغيل السكريبت بالخلفية:\n{}\n\nيرجى الانتظار قليلاً...".format(name), 
+            msg_text, 
             MessageBox.TYPE_INFO, 
-            timeout=5
+            timeout=3
         )
-        self.console.execute(cmd)
+        self.console.execute(str(cmd))
 
     def command_finished(self, answer=None):
-        self.session.open(MessageBox, "✅ تم تنفيذ السكريبت والأمر بنجاح!", MessageBox.TYPE_INFO, timeout=3)
+        self.session.open(MessageBox, "✅ تم إرسال الأمر للنظام بنجاح!", MessageBox.TYPE_INFO, timeout=3)
 
     def cancel_pressed(self):
         if self.current_menu == "sub":
