@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
-# تم إصلاح تشغيل الأوامر بنسبة 100% باستخدام eConsoleAppContainer القياسي لـ OpenATV 7.x
+# معالج ذكي ومخصص لقراءة ملف ajpanel_cmd الخاص بـ anow2008 بدون تعديل
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -8,7 +8,6 @@ from Components.MenuList import MenuList
 from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Screens.MessageBox import MessageBox
-from Enigma import eConsoleAppContainer # الموديول الرسمي لتشغيل وعرض الأوامر في بايثون 3
 import urllib.request
 
 class AnowPanelMainScreen(Screen):
@@ -32,9 +31,8 @@ class AnowPanelMainScreen(Screen):
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
-        self.container = eConsoleAppContainer()
         
-        self["title_label"] = Label("anow panel — جاري سحب البيانات من السيرفر...")
+        self["title_label"] = Label("anow panel — جاري سحب البيانات وتقسيم الأقسام...")
         self["hint_label"] = Label("يرجى الانتظار ثواني...")
         
         self.menu_data = {}
@@ -42,7 +40,7 @@ class AnowPanelMainScreen(Screen):
         self.current_menu = "main"
         self["menu_list"] = MenuList([])
         
-        self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
+        self["actions"] = ActionMap(["SetupActions"], {
             "ok": self.ok_pressed,
             "cancel": self.cancel_pressed
         }, -1)
@@ -58,14 +56,17 @@ class AnowPanelMainScreen(Screen):
             
             lines = content.split('\n')
             current_section = None
-            current_item_name = ""
+            temp_name = ""
             
             for line in lines:
                 line = line.strip()
-                if not line:
+                
+                # 1. تخطي الأسطر الفارغة أو الأسطر المليئة بالنقاط فقط (الفواصل)
+                if not line or (line.startswith("●") and len(line) > 10):
                     continue
                 
-                if any(x in line for x in ["★", "●", "||", "————"]):
+                # 2. التعرف على الأقسام الرئيسية المفرغة المحتوية على الفواصل والأشرطة والمحصورة بـ |
+                if "————" in line or "::|" in line or ("|" in line and ("★" in line or "●" in line)):
                     clean_section = line.replace("————", "").replace("★★★", "").replace("●●", "").replace("★", "").replace("::", "").replace("|", "").strip()
                     if clean_section:
                         current_section = clean_section
@@ -74,21 +75,36 @@ class AnowPanelMainScreen(Screen):
                             self.main_menu.append((current_section, current_section))
                     continue
                 
+                # 3. معالجة الأوامر والنصوص داخل الأقسام
                 if current_section:
-                    if any(line.startswith(cmd) for cmd in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
-                        name = current_item_name if current_item_name else line
+                    # تنظيف النجوم من أسطر الأسماء مثل ★★★ ArabicSavior ★★★
+                    is_title_line = line.startswith("★") and line.endswith("★")
+                    clean_line = line.replace("★★★", "").replace("★", "").strip()
+                    
+                    # فحص الكلمات الدليلة لبداية الأوامر الفعلية في اللينكس
+                    if any(line.startswith(cmd) for cmd in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod", "reboot", "sleep"]):
+                        # إذا كان هناك اسم مجهز مسبقاً نستخدمه، وإلا نضع نفس الأمر كإسم وعملية
+                        name = temp_name if temp_name else line
                         self.menu_data[current_section].append((name, line))
-                        current_item_name = ""
+                        temp_name = ""  # تصفير الاسم المؤقت
                     else:
-                        current_item_name = line
+                        # إذا كان السطر يحتوي على جزء تعليق (مثال: init 0 # Deep Standby) نأخذه كأمر مباشر
+                        if "#" in line and any(line.split("#")[0].strip().startswith(cmd) for cmd in ["init", "reboot"]):
+                            cmd_part = line.split("#")[0].strip()
+                            name_part = line.strip()
+                            self.menu_data[current_section].append((name_part, cmd_part))
+                        else:
+                            # السطر عبارة عن عنوان للأمر القادم
+                            temp_name = clean_line
 
+            # إذا تم العثور على أقسام، اعرض القائمة الرئيسية
             if self.main_menu:
                 self["menu_list"].setList(self.main_menu)
-                self["title_label"].setText("ANOW PANEL — القائمة الرئيسية")
+                self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
                 self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             else:
-                self["title_label"].setText("⚠ تم جلب الملف ولكنه فارغ أو منسق بشكل خاطئ")
-                self["hint_label"].setText("تأكد من وجود أقسام وأوامر داخل ملف ajpanel_cmd")
+                self["title_label"].setText("⚠ لم يتم تقسيم الملف بشكل صحيح")
+                self["hint_label"].setText("تأكد من مطابقة صيغة الملف")
             
         except Exception as e:
             self["title_label"].setText("❌ فشل الاتصال بالسيرفر وجلب البيانات!")
@@ -99,38 +115,31 @@ class AnowPanelMainScreen(Screen):
         if not selected:
             return
 
-        if isinstance(selected, tuple) or isinstance(selected, list):
-            selection_name = str(selected[0])
-            selection_target = str(selected[1])
-        else:
-            selection_name = str(selected)
-            selection_target = str(selected)
+        selection_name = str(selected[0])
+        selection_target = str(selected[1])
 
         if self.current_menu == "main":
+            # فتح القسم الفرعي
             if selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
                 self["title_label"].setText("قسم: " + selection_name)
                 self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
                 self["menu_list"].setList(self.menu_data[selection_target])
         else:
+            # تشغيل الأمر الفعلي المتواجد بالملف عبر الكونسول
             self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
         try:
-            # تنظيف السطر تماماً ليكون أمراً نصياً نَقياً للينكس
-            clean_cmd = str(cmd).strip()
-            
-            # تشغيل الأمر وإظهار نافذة التنفيذ الرسمية للإنيجما
             from Screens.Console import Console
-            self.session.open(Console, title=str(name), cmdlist=[clean_cmd])
-            
+            self.session.open(Console, title=str(name), cmdlist=[str(cmd).strip()])
         except Exception as e:
             self.session.open(MessageBox, "خطأ أثناء التنفيذ: " + str(e), MessageBox.TYPE_ERROR)
 
     def cancel_pressed(self):
         if self.current_menu == "sub":
             self.current_menu = "main"
-            self["title_label"].setText("ANOW PANEL — القائمة الرئيسية")
+            self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
             self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             self["menu_list"].setList(self.main_menu)
         else:
@@ -142,7 +151,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel", 
-        description="لوحة التحكم الذكية والإصدار الاحترافي المطور لـ anow2008", 
+        description="لوحة التحكم الذكية والإصدار المتطور لـ anow2008", 
         where=PluginDescriptor.WHERE_PLUGINMENU, 
         icon="plugin.png", 
         fnc=main
