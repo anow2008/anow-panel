@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
-# تم حل مشكلة الـ TypeError وفصل الأمر عن الاسم بنجاح لصور OpenATV
+# تم إصلاح معالجة الـ MenuList لمنع الكراش نهائياً على OpenATV 7.x
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -77,7 +77,6 @@ class AnowPanelMainScreen(Screen):
                 if current_section:
                     if any(line.startswith(cmd) for cmd in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
                         name = current_item_name if current_item_name else line
-                        # حفظ البيانات كـ Tuple (الاسم المعروض، الأمر الحقيقي للينكس)
                         self.menu_data[current_section].append((name, line))
                         current_item_name = ""
                     else:
@@ -100,33 +99,39 @@ class AnowPanelMainScreen(Screen):
         if not selected:
             return
 
-        # هنا تم الإصلاح: selected يعيد التوبل الحالي المختار من القائمة
-        selection_name = selected[0]
-        selection_target = selected[1]
+        # فحص وتأمين الكائن المختار لضمان قراءته بشكل سليم سواء كان مصفوفة أو توبل
+        if isinstance(selected, tuple) or isinstance(selected, list):
+            selection_name = str(selected[0])
+            selection_target = str(selected[1])
+        else:
+            selection_name = str(selected)
+            selection_target = str(selected)
 
         if self.current_menu == "main":
             if selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
-                self["title_label"].setText("قسم: " + str(selection_name))
+                self["title_label"].setText("قسم: " + selection_name)
                 self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
                 self["menu_list"].setList(self.menu_data[selection_target])
         else:
-            # داخل القائمة الفرعية، الاختيار يحتوي على (اسم السكريبت، أمر اللينكس النصي)
-            # نقوم بتمرير السلسلة النصية الصافية للأمر هنا
-            self.execute_command(str(selection_name), str(selection_target))
+            # نحن الآن في القائمة الفرعية، نقوم بتمرير النصوص الصافية
+            self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
-        # صياغة آمنة للرسالة بدون تداخل كائنات بايثون
-        msg_text = "جاري تشغيل السكريبت بالخلفية:\n" + name + "\n\nيرجى الانتظار ثواني..."
-        self.session.openWithCallback(
-            self.command_finished, 
-            MessageBox, 
-            msg_text, 
-            MessageBox.TYPE_INFO, 
-            timeout=4
-        )
-        # تنفيذ الأمر النصي الصافي في التلنت بالخلفية
-        self.console.execute(cmd)
+        try:
+            msg_text = "جاري تشغيل السكريبت بالخلفية:\n" + str(name) + "\n\nيرجى الانتظار ثواني..."
+            self.session.openWithCallback(
+                self.command_finished, 
+                MessageBox, 
+                msg_text, 
+                MessageBox.TYPE_INFO, 
+                timeout=4
+            )
+            # التأكد التام من إرسال الأمر كنص صافي للـ تيلنت
+            clean_cmd = str(cmd).strip()
+            self.console.execute(clean_cmd)
+        except Exception as e:
+            self.session.open(MessageBox, "خطأ أثناء التنفيذ: " + str(e), MessageBox.TYPE_ERROR)
 
     def command_finished(self, answer=None):
         self.session.open(MessageBox, "✅ تم إرسال الأمر للنظام بنجاح!", MessageBox.TYPE_INFO, timeout=3)
