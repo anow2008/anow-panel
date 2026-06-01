@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 # anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
-# تم إصلاح كراش دالة الـ execute باستخدام os.system المستقر لـ OpenATV 7.6
+# تم إصلاح تشغيل الأوامر بالكامل عبر شاشة الـ Console الرسمية لـ OpenATV 7.x
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
 from Components.MenuList import MenuList
 from Components.ActionMap import ActionMap
 from Components.Label import Label
-from Screens.MessageBox import MessageBox
+from Screens.Console import Console # استدعاء شاشة العرض الرسمية للأوامر
 import urllib.request
-import os # استدعاء مكتبة النظام لتشغيل الأوامر بأمان
 
 class AnowPanelMainScreen(Screen):
     skin = """
@@ -115,16 +114,11 @@ class AnowPanelMainScreen(Screen):
             self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
-        try:
-            # تشغيل الأمر مباشرة عبر نظام اللينكس بالخلفية وبشكل آمن تماماً يمنع الكراش
-            clean_cmd = str(cmd).strip()
-            os.system(clean_cmd + " &") 
-            
-            # إظهار رسالة تأكيد للمستخدم بعد إرسال الأمر بنجاح
-            msg_text = "تم تنفيذ الأمر بالخلفية بنجاح:\n" + str(name)
-            self.session.open(MessageBox, msg_text, MessageBox.TYPE_INFO, timeout=4)
-        except Exception as e:
-            self.session.open(MessageBox, "خطأ أثناء التنفيذ: " + str(e), MessageBox.TYPE_ERROR)
+        # تنظيف وتحضير الأمر ليكون نصاً صافياً 100% يقبله نظام التلنت
+        clean_cmd = str(cmd).strip()
+        
+        # فتح شاشة الـ Console الرسمية التابعة للصورة لإظهار عمليات التثبيت مباشرة أمام المستخدم
+        self.session.open(Console, title=str(name), cmdlist=[clean_cmd])
 
     def cancel_pressed(self):
         if self.current_menu == "sub":
