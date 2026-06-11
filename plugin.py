@@ -3,7 +3,7 @@
 # Plugin: anow panel v1.0
 # Developed by: anow2008
 # Compatible with: Python 3 & OpenATV 7.6 (Luxury FHD Skin)
-# Description: Fixed <not-a-string> issue for OpenATV 7.6 / Python 3
+# Description: التقسيم القياسي الأول مع دعم الأيقونات بدون كراش
 # ==============================================================================
 
 from Plugins.Plugin import PluginDescriptor
@@ -28,8 +28,8 @@ ICON_FOLDER = os.path.join(PLUGIN_PATH, "icons")
 
 def build_menu_item(title, is_folder=True):
     """
-    بناء سطر القائمة الاحترافي المتوافق مع بايثون 3 وصور OpenATV الحديثة.
-    يعيد Tuple يحتوي على العنوان أولاً، ثم قائمة بمكونات الرسم (الأيقونة والنص).
+    بناء سطر القائمة المتوافق مع بايثون 3.
+    يعيد المكونات مدمجة داخل Tuple واحد رئيسي ليفهمها محرك Enigma2 ويرسم الأيقونة.
     """
     if is_folder:
         clean_title = title.strip()
@@ -41,14 +41,13 @@ def build_menu_item(title, is_folder=True):
         
     png = loadPNG(icon_path)
     
-    # قائمة مكونات الرسم فقط داخل السطر
+    # قائمة مكونات الرسم داخل السطر
     components = [
         MultiContentEntryPixmapAlphaTest(pos=(15, 7), size=(32, 32), png=png),
         MultiContentEntryText(pos=(60, 2), size=(900, 40), font=0, text=title, flags=0)
     ]
     
-    # إرجاع التنسيق القياسي (العنوان، قائمة المكونات)
-    return (title, components)
+    return tuple(components)
 
 
 # ------------------------------------------------------------------------------
@@ -76,8 +75,8 @@ class AnowPanelMainScreen(Screen):
         Screen.__init__(self, session)
         self.session = session
         
-        self["title_label"] = Label("anow panel — Fetching sections and data...")
-        self["hint_label"] = Label("Please wait a moment...")
+        self["title_label"] = Label("anow panel — جاري سحب البيانات وتقسيم الأقسام...")
+        self["hint_label"] = Label("يرجى الانتظار ثواني...")
         
         self.menu_data = {}
         self.main_menu = []
@@ -86,7 +85,7 @@ class AnowPanelMainScreen(Screen):
         
         self["menu_list"] = MenuList([])
         
-        # ضبط محرك القائمة ليدعم الـ MultiContent بشكل صحيح
+        # ضبط محرك القائمة ليدعم الـ MultiContent والـ Icons بشكل صحيح
         try:
             self["menu_list"].list.setFont(0, gFont("Regular", 23))
             self["menu_list"].list.setItemHeight(45)
@@ -124,26 +123,27 @@ class AnowPanelMainScreen(Screen):
             while i < len(clean_lines):
                 line = clean_lines[i]
                 
-                if "————" in line or "★★★" in line or "●●" in line or "||" in line:
+                # التعرف على الأقسام الرئيسية بنفس الطريقة الأولى
+                if "————" in line or "★★★" in line or "●●" in line or "||" in line or "::|" in line:
                     clean_section = line.replace("————", "").replace("★★★", "").replace("●●", "").replace("★", "").replace("::", "").replace("|", "").strip()
                     if clean_section:
                         current_section = clean_section
                         if current_section not in self.menu_data:
                             self.menu_data[current_section] = []
                             display_item = build_menu_item(current_section, is_folder=True)
-                            # هنا نحتفظ بـ display_item كامل لتمريره للـ MenuList مباشرة
                             self.main_menu.append((current_section, display_item))
                     i += 1
                     continue
                 
+                # معالجة محتويات الأقسام بناءً على منطق الفحص المسبق للسطر التالي (النسخة الأولى)
                 if current_section:
-                    is_cmd = any(line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"])
+                    is_cmd = any(line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod", "reboot", "sleep"])
                     
                     if not is_cmd:
-                        script_name = line
+                        script_name = line.replace("★★★", "").replace("★", "").strip()
                         if (i + 1) < len(clean_lines):
                             next_line = clean_lines[i+1]
-                            is_next_cmd = any(next_line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"])
+                            is_next_cmd = any(next_line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod", "reboot", "sleep"])
                             
                             if is_next_cmd:
                                 display_item = build_menu_item(script_name, is_folder=False)
@@ -157,15 +157,16 @@ class AnowPanelMainScreen(Screen):
                 i += 1
 
             if self.main_menu:
-                # نمرر الـ display_item مباشرة (والذي أصبح عبارة عن Tuple جاهز ومطابق للمواصفات)
+                # عرض الأقسام الرئيسية
                 self["menu_list"].setList([item[1] for item in self.main_menu])
-                self["title_label"].setText("ANOW PANEL — Main Sections")
-                self["hint_label"].setText("📡 Select section and press OK | Cancel to exit")
+                self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
+                self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             else:
-                self["title_label"].setText("⚠ File ajpanel_cmd is empty or format mismatch")
+                self["title_label"].setText("⚠ لم يتم تقسيم الملف بشكل صحيح")
+                self["hint_label"].setText("تأكد من مطابقة صيغة ملف الـ ajpanel_cmd")
             
         except Exception as e:
-            self["title_label"].setText("❌ Failed to fetch data!")
+            self["title_label"].setText("❌ فشل الاتصال بالسيرفر وجلب البيانات!")
             self["hint_label"].setText(str(e))
 
     def ok_pressed(self):
@@ -177,11 +178,12 @@ class AnowPanelMainScreen(Screen):
             self.active_section = self.main_menu[selected_idx][0]
             if self.active_section in self.menu_data and self.menu_data[self.active_section]:
                 self.current_menu = "sub"
-                self["title_label"].setText("Section: " + self.active_section)
-                self["hint_label"].setText("⚡ Press OK to execute script | Cancel to go back")
+                self["title_label"].setText("قسم: " + self.active_section)
+                self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
+                # عرض محتويات القسم الفرعي (الأوامر والسكربتات) مع الأيقونات المخصصة لها
                 self["menu_list"].setList([item[2] for item in self.menu_data[self.active_section]])
             else:
-                self.session.open(MessageBox, "This section does not contain valid commands!", MessageBox.TYPE_INFO)
+                self.session.open(MessageBox, "هذا القسم لا يحتوي على أي أوامر صالحة!", MessageBox.TYPE_INFO)
         else:
             sub_list = self.menu_data[self.active_section]
             selection_name = sub_list[selected_idx][0]
@@ -194,13 +196,13 @@ class AnowPanelMainScreen(Screen):
             clean_cmd = str(cmd).strip()
             self.session.open(Console, title=str(name), cmdlist=[clean_cmd])
         except Exception as e:
-            self.session.open(MessageBox, "Execution Error: " + str(e), MessageBox.TYPE_ERROR)
+            self.session.open(MessageBox, "خطأ أثناء التنفيذ: " + str(e), MessageBox.TYPE_ERROR)
 
     def cancel_pressed(self):
         if self.current_menu == "sub":
             self.current_menu = "main"
-            self["title_label"].setText("ANOW PANEL — Main Sections")
-            self["hint_label"].setText("📡 Select section and press OK | Cancel to exit")
+            self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
+            self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             self["menu_list"].setList([item[1] for item in self.main_menu])
         else:
             self.close()
@@ -211,7 +213,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel", 
-        description="Smart control panel for anow2008 with icons", 
+        description="لوحة التحكم الذكية والإصدار المتطور لـ anow2008 مع الأيقونات", 
         where=PluginDescriptor.WHERE_PLUGINMENU, 
         icon="plugin.png", 
         fnc=main
