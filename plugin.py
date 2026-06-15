@@ -40,14 +40,15 @@ def build_menu_item(title, is_folder=True):
         
     # حماية إضافية في حالة عدم وجود أي أيقونة في المجلد بالكامل
     if not os.path.exists(icon_path):
-        # إنشاء مسار وهمي أو التغاضي لمنع الكراش والأخطاء
-        return [title, MultiContentEntryText(pos=(20, 2), size=(900, 40), font=0, text=title, flags=0)]
+        return (title, [MultiContentEntryText(pos=(20, 2), size=(900, 40), font=0, text=title, flags=0)])
         
     png = loadPNG(icon_path)
-    res = [title]
-    res.append(MultiContentEntryPixmapAlphaTest(pos=(15, 7), size=(32, 32), png=png))
-    res.append(MultiContentEntryText(pos=(60, 2), size=(900, 40), font=0, text=title, flags=0))
-    return res
+    res = [
+        MultiContentEntryPixmapAlphaTest(pos=(15, 7), size=(32, 32), png=png),
+        MultiContentEntryText(pos=(60, 2), size=(900, 40), font=0, text=title, flags=0)
+    ]
+    # نعيد توبل (title, res) بحيث يكون العنصر الأول هو المعرف، والثاني هو محتوى العرض
+    return (title, res)
 
 
 # ------------------------------------------------------------------------------
@@ -83,19 +84,17 @@ class AnowPanelMainScreen(Screen):
         self.current_menu = "main"
         self.active_section = ""
         
+        # استخدام قائمة مخصصة لـ MultiContent
         self["menu_list"] = MenuList([])
         
-        # حماية وضبط خطوط القائمة لصور OpenATV الحديثة لضمان ظهور الـ MultiContent
+        # إجبار الـ list box على استخدام الـ MultiContent mode
         try:
-            self["menu_list"].list.setFont(0, gFont("Regular", 23))
-            self["menu_list"].list.setItemHeight(45)
+            self["menu_list"].list.font0 = gFont("Regular", 23)
+            self["menu_list"].list.itemHeight = 45
+            self["menu_list"].list.style = "multicontent"
         except:
-            try:
-                self["menu_list"].l.setFont(0, gFont("Regular", 23))
-                self["menu_list"].l.setItemHeight(45)
-            except:
-                pass
-        
+            pass
+            
         self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
             "ok": self.ok_pressed,
             "cancel": self.cancel_pressed
@@ -112,21 +111,18 @@ class AnowPanelMainScreen(Screen):
             
             lines = content.split('\n')
             
-            # تنظيف السطور تماماً من الفراغات
             clean_lines = []
             for line in lines:
                 line = line.strip()
                 if line:
                     clean_lines.append(line)
             
-            current_section = "العامة" # قسم افتراضي لحماية الأوامر الحرة
+            current_section = "العامة"
             
             for i in range(len(clean_lines)):
                 line = clean_lines[i]
                 
-                # رصد الأقسام بناء على وجود الزخارف التقليدية في ملفك
                 if any(x in line for x in ["★", "●", "||", "————"]):
-                    # إذا لم يكن أمراً، فهو اسم لقسم رئيسي
                     if not any(line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
                         clean_section = line.replace("————", "").replace("★★★", "").replace("●●", "").replace("★", "").replace("::", "").replace("|", "").replace("[", "").replace("]", "").strip()
                         if clean_section and clean_section not in self.menu_data:
@@ -136,26 +132,21 @@ class AnowPanelMainScreen(Screen):
                             self.main_menu.append((current_section, display_item))
                         continue
                 
-                # رصد أوامر التثبيت واللينكس الحقيقية بالملي
                 is_command = any(line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"])
                 if is_command:
-                    # الاسم الذكي: هو السطر السابق مباشرة للأمر بشرط ألا يكون قسماً أو أمراً آخر
                     script_name = ""
                     if i > 0:
                         prev = clean_lines[i-1]
                         if not any(x in prev for x in ["————", "★★★", "●●"]) and not any(prev.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
                             script_name = prev
                     
-                    # إذا لم نجد اسماً، نستخرج اسماً ذكياً ومختصراً من نفس أمر الـ wget أو الـ opkg
                     if not script_name:
                         script_name = line.split("/")[-1].replace(".sh", "").replace(".ipk", "").strip()
                         if len(script_name) < 3:
                             script_name = line[:40]
                     
-                    # تنظيف وتجميل اسم السكريبت النهائي المعروض للمستخدم
                     script_name = script_name.replace("★", "").replace("[", "").replace("]", "").strip()
                     
-                    # إضافة القسم الافتراضي إذا لم يتم رصد أقسام من قبل
                     if current_section not in self.menu_data:
                         self.menu_data[current_section] = []
                         display_item = build_menu_item(current_section, is_folder=True)
@@ -164,9 +155,9 @@ class AnowPanelMainScreen(Screen):
                     display_item = build_menu_item(script_name, is_folder=False)
                     self.menu_data[current_section].append((script_name, line, display_item))
 
-            # عرض الأقسام الرئيسية
             if self.main_menu:
-                self["menu_list"].setList([item[1] for item in self.main_menu])
+                # نمرر الكائنات كـ قائمة تحتوي على الـ tuple المكون من (المعرف، قائمة المكونات الجرافيكية)
+                self["menu_list"].l.setList([item[1] for item in self.main_menu])
                 self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
                 self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             else:
@@ -187,7 +178,7 @@ class AnowPanelMainScreen(Screen):
                 self.current_menu = "sub"
                 self["title_label"].setText("قسم: " + self.active_section)
                 self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
-                self["menu_list"].setList([item[2] for item in self.menu_data[self.active_section]])
+                self["menu_list"].l.setList([item[2] for item in self.menu_data[self.active_section]])
             else:
                 self.session.open(MessageBox, "هذا القسم لا يحتوي على أوامر لينكس صالحة للتنفيذ حالياً!", MessageBox.TYPE_INFO)
         else:
@@ -200,7 +191,6 @@ class AnowPanelMainScreen(Screen):
         try:
             from Screens.Console import Console
             clean_cmd = str(cmd).strip()
-            # إرسال أمر اللينكس الحقيقي والنقي 100% للكونسول
             self.session.open(Console, title=str(name), cmdlist=[clean_cmd])
         except Exception as e:
             self.session.open(MessageBox, "خطأ أثناء التنفيذ: " + str(e), MessageBox.TYPE_ERROR)
@@ -210,7 +200,7 @@ class AnowPanelMainScreen(Screen):
             self.current_menu = "main"
             self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
             self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
-            self["menu_list"].setList([item[1] for item in self.main_menu])
+            self["menu_list"].l.setList([item[1] for item in self.main_menu])
         else:
             self.close()
 
