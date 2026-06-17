@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
-# anow panel for Enigma2 (Python 3 & Luxury FHD Skin)
-# معالج ذكي ومخصص لقراءة ملف ajpanel_cmd الخاص بـ anow2008 بدون تعديل
+# ==============================================================================
+# Plugin: anow panel v1.0
+# Developed by: anow2008
+# Compatible with: Python 3 & OpenATV 7.6 (Ultimate Fix)
+# Description: إصدار الفلترة الصارمة - تنفيذ الأوامر الحقيقية وإظهار الأيقونات إجبارياً
+# ==============================================================================
 
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
@@ -8,8 +12,48 @@ from Components.MenuList import MenuList
 from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Screens.MessageBox import MessageBox
-import urllib.request
+from Tools.Directories import resolveFilename, SCOPE_PLUGINS
 
+# مكتبات العرض المتوافقة مع بايثون 3 لصور OpenATV الحديثة
+from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaTest
+from enigma import eListboxPythonMultiContent, gFont, loadPNG
+import urllib.request
+import os
+
+# ------------------------------------------------------------------------------
+# إعدادات المسارات والأيقونات
+# ------------------------------------------------------------------------------
+PLUGIN_PATH = resolveFilename(SCOPE_PLUGINS, "Extensions/anow_panel/")
+ICON_FOLDER = os.path.join(PLUGIN_PATH, "icons")
+
+def build_menu_item(title, is_folder=True):
+    """
+    بناء سطر القائمة الاحترافي (الأيقونة + النص) ليعمل إجبارياً وبدون أخطاء
+    """
+    if is_folder:
+        clean_title = title.strip()
+        icon_path = os.path.join(ICON_FOLDER, f"{clean_title}.png")
+        if not os.path.exists(icon_path):
+            icon_path = os.path.join(ICON_FOLDER, "folder.png")
+    else:
+        icon_path = os.path.join(ICON_FOLDER, "script.png")
+        
+    # حماية إضافية في حالة عدم وجود أي أيقونة في المجلد بالكامل
+    if not os.path.exists(icon_path):
+        return (title, [MultiContentEntryText(pos=(20, 2), size=(900, 40), font=0, text=title, flags=0)])
+        
+    png = loadPNG(icon_path)
+    res = [
+        MultiContentEntryPixmapAlphaTest(pos=(15, 7), size=(32, 32), png=png),
+        MultiContentEntryText(pos=(60, 2), size=(900, 40), font=0, text=title, flags=0)
+    ]
+    # نعيد توبل (title, res) بحيث يكون العنصر الأول هو المعرف، والثاني هو محتوى العرض
+    return (title, res)
+
+
+# ------------------------------------------------------------------------------
+# الشاشة الرئيسية للبلجن
+# ------------------------------------------------------------------------------
 class AnowPanelMainScreen(Screen):
     skin = """
     <screen position="center,center" size="1100,650" title="anow panel v1.0" backgroundColor="#0f172a" flags="wfNoBorder">
@@ -21,7 +65,7 @@ class AnowPanelMainScreen(Screen):
         
         <eLabel position="20,90" size="1060,3" backgroundColor="#06b6d4" />
         
-        <widget name="menu_list" position="40,110" size="1020,440" scrollbarMode="showOnDemand" font="Regular; 22" itemHeight="45" foregroundColor="#ffffff" backgroundColor="#1e293b" selectionColor="#06b6d4" selectionForegroundColor="#ffffff" transparent="0" zPosition="2" />
+        <widget name="menu_list" position="40,110" size="1020,440" scrollbarMode="showOnDemand" foregroundColor="#ffffff" backgroundColor="#1e293b" selectionColor="#06b6d4" selectionForegroundColor="#ffffff" transparent="0" zPosition="2" />
         
         <eLabel position="20,565" size="1060,2" backgroundColor="#334155" />
         <widget name="hint_label" position="30,580" size="1040,40" font="Regular; 18" halign="left" valign="center" foregroundColor="#94a3b8" backgroundColor="#1e293b" transparent="1" zPosition="2" />
@@ -32,15 +76,26 @@ class AnowPanelMainScreen(Screen):
         Screen.__init__(self, session)
         self.session = session
         
-        self["title_label"] = Label("anow panel — جاري سحب البيانات وتقسيم الأقسام...")
+        self["title_label"] = Label("anow panel — جاري جلب الأقسام والبيانات...")
         self["hint_label"] = Label("يرجى الانتظار ثواني...")
         
         self.menu_data = {}
         self.main_menu = []
         self.current_menu = "main"
+        self.active_section = ""
+        
+        # استخدام قائمة مخصصة لـ MultiContent
         self["menu_list"] = MenuList([])
         
-        self["actions"] = ActionMap(["SetupActions"], {
+        # إجبار الـ list box على استخدام الـ MultiContent mode
+        try:
+            self["menu_list"].list.font0 = gFont("Regular", 23)
+            self["menu_list"].list.itemHeight = 45
+            self["menu_list"].list.style = "multicontent"
+        except:
+            pass
+            
+        self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
             "ok": self.ok_pressed,
             "cancel": self.cancel_pressed
         }, -1)
@@ -55,84 +110,88 @@ class AnowPanelMainScreen(Screen):
                 content = response.read().decode('utf-8', errors='ignore')
             
             lines = content.split('\n')
-            current_section = None
-            temp_name = ""
             
+            clean_lines = []
             for line in lines:
                 line = line.strip()
+                if line:
+                    clean_lines.append(line)
+            
+            current_section = "العامة"
+            
+            for i in range(len(clean_lines)):
+                line = clean_lines[i]
                 
-                # 1. تخطي الأسطر الفارغة أو الأسطر المليئة بالنقاط فقط (الفواصل)
-                if not line or (line.startswith("●") and len(line) > 10):
-                    continue
-                
-                # 2. التعرف على الأقسام الرئيسية المفرغة المحتوية على الفواصل والأشرطة والمحصورة بـ |
-                if "————" in line or "::|" in line or ("|" in line and ("★" in line or "●" in line)):
-                    clean_section = line.replace("————", "").replace("★★★", "").replace("●●", "").replace("★", "").replace("::", "").replace("|", "").strip()
-                    if clean_section:
-                        current_section = clean_section
-                        if current_section not in self.menu_data:
+                if any(x in line for x in ["★", "●", "||", "————"]):
+                    if not any(line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
+                        clean_section = line.replace("————", "").replace("★★★", "").replace("●●", "").replace("★", "").replace("::", "").replace("|", "").replace("[", "").replace("]", "").strip()
+                        if clean_section and clean_section not in self.menu_data:
+                            current_section = clean_section
                             self.menu_data[current_section] = []
-                            self.main_menu.append((current_section, current_section))
-                    continue
+                            display_item = build_menu_item(current_section, is_folder=True)
+                            self.main_menu.append((current_section, display_item))
+                        continue
                 
-                # 3. معالجة الأوامر والنصوص داخل الأقسام
-                if current_section:
-                    # تنظيف النجوم من أسطر الأسماء مثل ★★★ ArabicSavior ★★★
-                    is_title_line = line.startswith("★") and line.endswith("★")
-                    clean_line = line.replace("★★★", "").replace("★", "").strip()
+                is_command = any(line.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"])
+                if is_command:
+                    script_name = ""
+                    if i > 0:
+                        prev = clean_lines[i-1]
+                        if not any(x in prev for x in ["————", "★★★", "●●"]) and not any(prev.lower().startswith(c) for c in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod"]):
+                            script_name = prev
                     
-                    # فحص الكلمات الدليلة لبداية الأوامر الفعلية في اللينكس
-                    if any(line.startswith(cmd) for cmd in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod", "reboot", "sleep"]):
-                        # إذا كان هناك اسم مجهز مسبقاً نستخدمه، وإلا نضع نفس الأمر كإسم وعملية
-                        name = temp_name if temp_name else line
-                        self.menu_data[current_section].append((name, line))
-                        temp_name = ""  # تصفير الاسم المؤقت
-                    else:
-                        # إذا كان السطر يحتوي على جزء تعليق (مثال: init 0 # Deep Standby) نأخذه كأمر مباشر
-                        if "#" in line and any(line.split("#")[0].strip().startswith(cmd) for cmd in ["init", "reboot"]):
-                            cmd_part = line.split("#")[0].strip()
-                            name_part = line.strip()
-                            self.menu_data[current_section].append((name_part, cmd_part))
-                        else:
-                            # السطر عبارة عن عنوان للأمر القادم
-                            temp_name = clean_line
+                    if not script_name:
+                        script_name = line.split("/")[-1].replace(".sh", "").replace(".ipk", "").strip()
+                        if len(script_name) < 3:
+                            script_name = line[:40]
+                    
+                    script_name = script_name.replace("★", "").replace("[", "").replace("]", "").strip()
+                    
+                    if current_section not in self.menu_data:
+                        self.menu_data[current_section] = []
+                        display_item = build_menu_item(current_section, is_folder=True)
+                        self.main_menu.append((current_section, display_item))
+                        
+                    display_item = build_menu_item(script_name, is_folder=False)
+                    self.menu_data[current_section].append((script_name, line, display_item))
 
-            # إذا تم العثور على أقسام، اعرض القائمة الرئيسية
             if self.main_menu:
-                self["menu_list"].setList(self.main_menu)
+                # نمرر الكائنات كـ قائمة تحتوي على الـ tuple المكون من (المعرف، قائمة المكونات الجرافيكية)
+                self["menu_list"].l.setList([item[1] for item in self.main_menu])
                 self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
                 self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
             else:
-                self["title_label"].setText("⚠ لم يتم تقسيم الملف بشكل صحيح")
-                self["hint_label"].setText("تأكد من مطابقة صيغة الملف")
+                self["title_label"].setText("⚠ تنسيق ملف ajpanel_cmd على الجيتهاب يحتاج مراجعة الأوامر!")
             
         except Exception as e:
-            self["title_label"].setText("❌ فشل الاتصال بالسيرفر وجلب البيانات!")
+            self["title_label"].setText("❌ فشل جلب البيانات من السيرفر!")
             self["hint_label"].setText(str(e))
 
     def ok_pressed(self):
-        selected = self["menu_list"].getCurrent()
-        if not selected:
+        selected_idx = self["menu_list"].getSelectedIndex()
+        if selected_idx is None:
             return
 
-        selection_name = str(selected[0])
-        selection_target = str(selected[1])
-
         if self.current_menu == "main":
-            # فتح القسم الفرعي
-            if selection_target in self.menu_data and self.menu_data[selection_target]:
+            self.active_section = self.main_menu[selected_idx][0]
+            if self.active_section in self.menu_data and self.menu_data[self.active_section]:
                 self.current_menu = "sub"
-                self["title_label"].setText("قسم: " + selection_name)
+                self["title_label"].setText("قسم: " + self.active_section)
                 self["hint_label"].setText("⚡ اضغط OK لتشغيل السكريبت فوراً | Cancel للعودة للخلف")
-                self["menu_list"].setList(self.menu_data[selection_target])
+                self["menu_list"].l.setList([item[2] for item in self.menu_data[self.active_section]])
+            else:
+                self.session.open(MessageBox, "هذا القسم لا يحتوي على أوامر لينكس صالحة للتنفيذ حالياً!", MessageBox.TYPE_INFO)
         else:
-            # تشغيل الأمر الفعلي المتواجد بالملف عبر الكونسول
+            sub_list = self.menu_data[self.active_section]
+            selection_name = sub_list[selected_idx][0]
+            selection_target = sub_list[selected_idx][1]
             self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
         try:
             from Screens.Console import Console
-            self.session.open(Console, title=str(name), cmdlist=[str(cmd).strip()])
+            clean_cmd = str(cmd).strip()
+            self.session.open(Console, title=str(name), cmdlist=[clean_cmd])
         except Exception as e:
             self.session.open(MessageBox, "خطأ أثناء التنفيذ: " + str(e), MessageBox.TYPE_ERROR)
 
@@ -141,7 +200,7 @@ class AnowPanelMainScreen(Screen):
             self.current_menu = "main"
             self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
             self["hint_label"].setText("📡 اختر القسم واضغط OK للدخول | Cancel للخروج")
-            self["menu_list"].setList(self.main_menu)
+            self["menu_list"].l.setList([item[1] for item in self.main_menu])
         else:
             self.close()
 
@@ -151,7 +210,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel", 
-        description="لوحة التحكم الذكية والإصدار المتطور لـ anow2008", 
+        description="لوحة التحكم الذكية والإصدار الاحترافي المطور لـ anow2008 بالأيقونات", 
         where=PluginDescriptor.WHERE_PLUGINMENU, 
         icon="plugin.png", 
         fnc=main
