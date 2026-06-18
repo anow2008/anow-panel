@@ -78,24 +78,23 @@ class AnowPanelMainScreen(Screen):
                 # 3. معالجة الأوامر والنصوص داخل الأقسام
                 if current_section:
                     # تنظيف النجوم من أسطر الأسماء مثل ★★★ ArabicSavior ★★★
-                    is_title_line = line.startswith("★") and line.endswith("★")
-                    clean_line = line.replace("★★★", "").replace("★", "").strip()
+                    if line.startswith("★") and line.endswith("★"):
+                        temp_name = line.replace("★★★", "").replace("★", "").strip()
+                        continue
                     
-                    # فحص الكلمات الدليلة لبداية الأوامر الفعلية في اللينكس
-                    if any(line.startswith(cmd) for cmd in ["opkg", "wget", "rm", "init", "cd", "curl", "chmod", "reboot", "sleep"]):
-                        # إذا كان هناك اسم مجهز مسبقاً نستخدمه، وإلا نضع نفس الأمر كإسم وعملية
-                        name = temp_name if temp_name else line
-                        self.menu_data[current_section].append((name, line))
-                        temp_name = ""  # تصفير الاسم المؤقت
-                    else:
-                        # إذا كان السطر يحتوي على جزء تعليق (مثال: init 0 # Deep Standby) نأخذه كأمر مباشر
-                        if "#" in line and any(line.split("#")[0].strip().startswith(cmd) for cmd in ["init", "reboot"]):
-                            cmd_part = line.split("#")[0].strip()
-                            name_part = line.strip()
-                            self.menu_data[current_section].append((name_part, cmd_part))
-                        else:
-                            # السطر عبارة عن عنوان للأمر القادم
-                            temp_name = clean_line
+                    # إذا كان السطر يحتوي على جزء تعليق (مثال: init 0 # Deep Standby) نأخذه كأمر مباشر
+                    if "#" in line and any(line.split("#")[0].strip().startswith(cmd) for cmd in ["init", "reboot"]):
+                        cmd_part = line.split("#")[0].strip()
+                        name_part = line.strip()
+                        self.menu_data[current_section].append((name_part, cmd_part))
+                        temp_name = ""
+                        continue
+
+                    # معالجة ذكية: أي سطر ليس قسماً وليس عنواناً صريحاً بالنجوم، هو أمر تنفيذي فوراً
+                    # هذا يضمن قراءة الأوامر التي تبدأ بمتغيرات مثل MS="" أو غيرها بدون تقييد بكلمات محددة
+                    name = temp_name if temp_name else line
+                    self.menu_data[current_section].append((name, line))
+                    temp_name = ""  # تصفير الاسم المؤقت بعد التعيين للأمر
 
             # إذا تم العثور على أقسام، اعرض القائمة الرئيسية
             if self.main_menu:
