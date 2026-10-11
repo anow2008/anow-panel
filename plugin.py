@@ -28,6 +28,10 @@ except ImportError:
 
 DATA_URL = "https://raw.githubusercontent.com/anow2008/ajpanel_cmd/refs/heads/main/ajpanel_cmd"
 
+# الملف المحلي (موجود جنب plugin.py). لو مش موجود يرجع للنت.
+LOCAL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ajpanel_cmd")
+USE_LOCAL_ONLY = False   # True = ما يدخلش نت خالص لجلب القايمة
+
 # ---------------------------------------------------------------------------
 # Palette
 # ---------------------------------------------------------------------------
@@ -146,8 +150,13 @@ def build_skin():
 
 
 def download(url):
-    """Blocking download (runs in a thread). Falls back to an unverified
-    SSL context for old images that lack up-to-date CA certificates."""
+    """يقرأ من الملف المحلي لو موجود، وإلا ينزّله من النت (مع fallback لـ SSL)."""
+    if os.path.isfile(LOCAL_FILE):
+        with open(LOCAL_FILE, "rb") as f:
+            return f.read()
+    if USE_LOCAL_ONLY:
+        raise IOError("الملف المحلي غير موجود: " + LOCAL_FILE)
+
     req = urllib.request.Request(url, headers={"User-Agent": "Enigma2 AnowPanel"})
     try:
         return urllib.request.urlopen(req, timeout=10).read()
@@ -214,7 +223,7 @@ class AnowPanelMainScreen(Screen):
     # ------------------------------------------------------------------ data
     def fetch_github_data(self):
         self["title_label"].setText("ANOW PANEL — جاري جلب البيانات...")
-        self["hint_label"].setText("⏳ جاري التحميل من GitHub...")
+        self["hint_label"].setText("⏳ جاري تحميل القائمة...")
         self["menu_list"].setList([])
         d = deferToThread(download, DATA_URL)
         d.addCallback(self.parse_data)
