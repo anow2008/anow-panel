@@ -1,30 +1,49 @@
 #!/bin/sh
-#  anow panel installation script
-#  Python 3 Compatible - Updated for anow-panel Repo
+#  anow panel installation script - Archive Full Download
+#  Python 3 Compatible
 
 PLUGIN_NAME="anowpanel"
 PLUGIN_PATH="/usr/lib/enigma2/python/Plugins/Extensions/$PLUGIN_NAME"
-GITHUB_RAW="https://raw.githubusercontent.com/anow2008/anow-panel/main"
+ARCHIVE_URL="https://github.com/anow2008/anow-panel/archive/refs/heads/main.tar.gz"
+TEMP_TAR="/tmp/anow-panel.tar.gz"
+TEMP_DIR="/tmp/anow-panel-main"
 
 echo "================================================="
 echo "   Welcome to anow panel Installer (Python 3)   "
 echo "================================================="
 echo "STATUS: Preparing system for installation..."
 
-# حذف النسخة القديمة إن وجدت وتجهيز المجلد
+# تجهيز المسار وحذف أي نسخ قديمة أو ملفات مؤقتة
 rm -rf $PLUGIN_PATH
+rm -rf $TEMP_TAR
+rm -rf /tmp/anow-panel-*
 mkdir -p $PLUGIN_PATH
 
-echo "STATUS: Downloading anow panel files from new repo..."
+echo "STATUS: Downloading repository archive..."
 
-# تحميل ملفات البلجن من الريبو الجديد بالظبط
-wget --no-check-certificate "$GITHUB_RAW/plugin.py" -O "$PLUGIN_PATH/plugin.py"
-wget --no-check-certificate "$GITHUB_RAW/__init__.py" -O "$PLUGIN_PATH/__init__.py"
+# تحميل الملف المضغوط للمستودع بالكامل
+wget --no-check-certificate "$ARCHIVE_URL" -O "$TEMP_TAR"
 
-# تحميل اللوجو إذا قمت برفعه لاحقاً في الريبو
-wget --no-check-certificate "$GITHUB_RAW/plugin.png" -O "$PLUGIN_PATH/plugin.png" 2>/dev/null
+if [ -f "$TEMP_TAR" ]; then
+    echo "STATUS: Extracting archive files..."
+    tar -xzf "$TEMP_TAR" -C /tmp/
+    
+    # نقل محتويات المستودع المستخرجة إلى مسار البلجن النهائي مباشرة
+    if [ -d "$TEMP_DIR" ]; then
+        cp -r $TEMP_DIR/* $PLUGIN_PATH/
+    else
+        cp -r /tmp/anow-panel-*/* $PLUGIN_PATH/
+    fi
+    
+    # تنظيف الملفات المؤقتة
+    rm -rf $TEMP_TAR
+    rm -rf /tmp/anow-panel-*
+else
+    echo "ERROR: Failed to download archive package!"
+    exit 1
+fi
 
-# إعطاء التصاريح اللازمة للتشغيل
+# إعطاء التصاريح اللازمة لجميع الملفات والمجلدات (بما فيها icons)
 chmod -R 755 $PLUGIN_PATH
 
 echo "================================================="
