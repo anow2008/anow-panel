@@ -52,6 +52,8 @@ cd /media/hdd/picon && wget -qO- "https://github.com/anow2008/picons/releases/do
 ————●●★::| ( Softcams ) |::★●●————
 ★★★ oscam levi45 ★★★
 wget --no-check-certificate -qO - https://raw.githubusercontent.com/anow2008/cam-emu/main/oscam/2install.sh | /bin/sh
+★★★ oscam levi45 11968-803 ★★★
+wget --no-check-certificate -O - "https://raw.githubusercontent.com/anow2008/cam-emu/main/oscam/3install.sh" | sh
 ★★★ Oscam-11.726-by-lenuxsat ★★★
 wget https://raw.githubusercontent.com/anow2008/cam-emu/main/oscam/installer.sh -O - | /bin/sh
 ★★★ Ncam ★★★
@@ -174,4 +176,3 @@ init 1          # Stops Enigma2 and network
 init 3          # Starts Enigma2 normally
 init 4          # Stops Enigma2
 init 6          # Reboots the box
-
