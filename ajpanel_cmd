@@ -50,10 +50,6 @@ wget -q "--no-check-certificate" https://raw.githubusercontent.com/anow2008/pico
 cd /media/hdd/picon && wget -qO- "https://github.com/anow2008/picons/releases/download/latest/srp.220x132-190x102.light.on.transparent_mybox-2026-09-20--12-00-49.hardlink.tar.xz" | tar -xJ --strip-components=1
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( Softcams ) |::★●●————
-★★★ oscam levi45 ★★★
-wget --no-check-certificate -qO - https://raw.githubusercontent.com/anow2008/cam-emu/main/oscam/2install.sh | /bin/sh
-★★★ oscam levi45 11968-803 ★★★
-wget --no-check-certificate -O - "https://raw.githubusercontent.com/anow2008/cam-emu/main/oscam/3install.sh" | sh
 ★★★ Oscam-11.726-by-lenuxsat ★★★
 wget https://raw.githubusercontent.com/anow2008/cam-emu/main/oscam/installer.sh -O - | /bin/sh
 ★★★ Ncam ★★★
