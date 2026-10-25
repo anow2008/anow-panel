@@ -63,6 +63,10 @@ wget -O /etc/tuxbox/config/SoftCam.Key https://raw.githubusercontent.com/anow200
 ★★★ cccam ★★★
 wget -qO- --no-check-certificate https://raw.githubusercontent.com/anow2008/cccam/main/install.sh | tr -d '\r' | sh
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
+————●●★::| ( EPGImport ) |::★●●————
+★★★ EPGImport anow ★★★
+wget -O /etc/epgimport/arabic.sources.xml https://raw.githubusercontent.com/anow2008/EPGImport-Sources-egypt/main/arabic.sources.xml && wget -O /etc/epgimport/arabic.channels.xml https://raw.githubusercontent.com/anow2008/EPGImport-Sources-egypt/main/arabic.channels.xml && ls -l /etc/epgimport/arabic.*
+●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( Plugins ) |::★●●————
 ★★★ epgimport ★★★  
 opkg update && opkg install enigma2-plugin-extensions-epgimport
