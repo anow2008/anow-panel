@@ -38,6 +38,8 @@ wget --no-check-certificate -O /tmp/channels.tar.gz https://raw.githubuserconten
 wget --no-check-certificate -O /tmp/22channels.tar.gz https://raw.githubusercontent.com/anow2008/channels/main/22channels.tar.gz && tar -xzf /tmp/22channels.tar.gz -C /tmp && rm -rf /etc/enigma2/userbouquet.* && cp -rf /tmp/etc/enigma2/* /etc/enigma2/ && chmod 644 /etc/enigma2/userbouquet.* /etc/enigma2/lamedb && wget -qO - http://127.0.0.1/web/servicelistreload?mode=0 && rm -rf /tmp/22channels.tar.gz /tmp/etc 2>/dev/null
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( picons ) |::★●●————
+★★★ openpicons ★★★
+wget -O /tmp/picons.tar.xz "https://openpicons.com/?file=full-motor-utf8snp/hardlink/utf8snp-full.220x132-190x102.light.on.transparent_2026-10-25--00-12-17.hardlink.tar.xz" && mkdir -p /media/hdd/picon && tar -xJf /tmp/picons.tar.xz -C /media/hdd/picon/ && rm /tmp/picons.tar.xz
 ★★★ picons eliesat ★★★
 wget -qO- "https://gitlab.com/eliesat/picons/-/raw/main/archive.sh" | sh
 ★★★ picons anow ★★★
