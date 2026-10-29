@@ -39,15 +39,13 @@ wget --no-check-certificate -O /tmp/22channels.tar.gz https://raw.githubusercont
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( picons ) |::★●●————
 ★★★ openpicons ★★★
-wget --no-check-certificate -L -O /tmp/picons.tar.xz "https://openpicons.com/?file=full-motor-utf8snp/hardlink/utf8snp-full.220x132-220x132.light.on.transparent_2026-10-26--05-19-35.hardlink.tar.xz" && mkdir -p /media/hdd/picon && tar -xJf /tmp/picons.tar.xz -C /media/hdd/picon/ --strip-components=1 && rm /tmp/picons.tar.xz★★★ picons eliesat ★★★
+wget --no-check-certificate -L -O /tmp/picons.tar.xz "https://openpicons.com/?file=full-motor-srp/hardlink/srp-full.220x132-220x132.light.on.transparent_2026-10-28--18-14-16.hardlink.tar.xz" && mkdir -p /media/hdd/picon && tar -xJf /tmp/picons.tar.xz -C /media/hdd/picon/ --strip-components=1 && rm /tmp/picons.tar.xz★★★ picons eliesat ★★★
 ★★★ picons eliesat ★★★
 wget -qO- "https://gitlab.com/eliesat/picons/-/raw/main/archive.sh" | sh
 ★★★ picons anow ★★★
 cd /media/hdd/picon && wget -qO- https://github.com/anow2008/picon-picon/archive/refs/heads/main.tar.gz | tar xz --strip-components=2 picon-picon-main/picon
-★★★ picons motor anow ★★★
-wget -q "--no-check-certificate" https://raw.githubusercontent.com/anow2008/picon-picon/main/install.sh -O - | bash
-★★★ picons anow جديد ★★★
-cd /media/hdd/picon && wget -qO- "https://github.com/anow2008/picons/releases/download/latest/srp.220x132-190x102.light.on.transparent_mybox-2026-09-20--12-00-49.hardlink.tar.xz" | tar -xJ --strip-components=1
+★★★ picons anow 2222 ★★★
+wget --no-check-certificate -L -O /tmp/picon.tar.gz "https://github.com/anow2008/picon-picon/archive/refs/heads/main.tar.gz" && mkdir -p /tmp/picon_extract && tar -xzf /tmp/picon.tar.gz -C /tmp/picon_extract && mkdir -p /media/hdd/picon && cp -rf /tmp/picon_extract/*/picon/* /media/hdd/picon/ && rm -rf /tmp/picon.tar.gz /tmp/picon_extract●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( Softcams ) |::★●●————
 ★★★ Oscam-11.726-by-lenuxsat ★★★
