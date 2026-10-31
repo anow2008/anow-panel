@@ -11,6 +11,7 @@ from Tools.LoadPixmap import LoadPixmap
 from enigma import getDesktop, gFont, eListboxPythonMultiContent, RT_HALIGN_LEFT, RT_VALIGN_CENTER
 from twisted.internet.threads import deferToThread
 import os
+import re
 import ssl
 import urllib.request
 
@@ -27,10 +28,6 @@ except ImportError:
     ICON_FLAGS = 0
 
 DATA_URL = "https://raw.githubusercontent.com/anow2008/ajpanel_cmd/refs/heads/main/ajpanel_cmd"
-
-# الملف المحلي (موجود جنب plugin.py). لو مش موجود يرجع للنت.
-LOCAL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ajpanel_cmd")
-USE_LOCAL_ONLY = False   # True = ما يدخلش نت خالص لجلب القايمة
 
 # ---------------------------------------------------------------------------
 # Palette
@@ -70,16 +67,18 @@ ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 
 # first matching keyword wins (lower-case, matched inside the section name)
 ICON_KEYWORDS = [
-    ("softcam", ("softcam", "cam", "emu", "oscam", "ncam", "سوفت", "كام")),
-    ("update", ("update", "upgrade", "تحديث")),
+    ("softcam", ("softcam", "cam", "emu", "oscam", "ncam", "key", "سوفت", "كام")),
+    ("update", ("update", "upgrade", "ajpanel_cmd", "تحديث", "صورة جديدة", "new image")),
     ("picons", ("picon", "بيكون")),
     ("skins", ("skin", "theme", "سكين", "سكن")),
-    ("channels", ("channel", "bouquet", "list", "settings", "قنوات", "قوائم")),
+    ("channels", ("channel", "bouquet", "epg", "settings", "اعدات", "اعدادات", "إعدادات", "قنوات", "قوائم")),
     ("plugins", ("plugin", "addon", "extension", "بلجن", "اضافات", "إضافات")),
-    ("network", ("network", "ftp", "wifi", "ssh", "telnet", "dns", "شبكة")),
-    ("backup", ("backup", "restore", "clean", "نسخ", "تنظيف")),
-    ("power", ("restart", "reboot", "power", "ريستارت", "اعادة", "إعادة")),
-    ("tools", ("tool", "system", "utility", "ادوات", "أدوات", "نظام")),
+    ("network", ("network", "ftp", "wifi", "ssh", "telnet", "dns", "astra", "abertis", "شبكة")),
+    ("trash", ("remove", "clean", "delete", "حذف", "تنظيف")),
+    ("backup", ("backup", "restore", "نسخ")),
+    ("power", ("restart", "reboot", "power", "init", "ريستارت", "اعادة", "إعادة")),
+    ("run", ("command", "اوامر", "أوامر")),
+    ("tools", ("tool", "system", "utility", "panel", "fix", "ادوات", "أدوات", "نظام")),
 ]
 
 _pix_cache = {}
@@ -150,19 +149,91 @@ def build_skin():
 
 
 def download(url):
-    """يقرأ من الملف المحلي لو موجود، وإلا ينزّله من النت (مع fallback لـ SSL)."""
-    if os.path.isfile(LOCAL_FILE):
-        with open(LOCAL_FILE, "rb") as f:
-            return f.read()
-    if USE_LOCAL_ONLY:
-        raise IOError("الملف المحلي غير موجود: " + LOCAL_FILE)
-
+    """Blocking download (runs in a thread). Falls back to an unverified
+    SSL context for old images that lack up-to-date CA certificates."""
     req = urllib.request.Request(url, headers={"User-Agent": "Enigma2 AnowPanel"})
     try:
         return urllib.request.urlopen(req, timeout=10).read()
     except ssl.SSLError:
         ctx = ssl._create_unverified_context()
         return urllib.request.urlopen(req, timeout=10, context=ctx).read()
+
+
+# ---------------------------------------------------------------------------
+# Parser for the ajpanel_cmd text file
+# ---------------------------------------------------------------------------
+CMD_WORDS = (
+    "wget", "curl", "opkg", "init", "rm", "cd", "mkdir", "tar", "killall", "sh", "bash",
+    "echo", "chmod", "cp", "mv", "sysctl", "ls", "cat", "sed", "ln", "touch", "reboot",
+    "service", "sleep", "unzip", "/bin/sh", "/etc/init.d/",
+)
+_VAR_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def looks_like_command(line):
+    """True for shell commands, False for plain descriptions such as
+    '1. أمر تحميل ملف astra.conf' that must never be executed."""
+    first = line.split(None, 1)[0]
+    if first in CMD_WORDS or _VAR_ASSIGN.match(first):
+        return True
+    return "&&" in line or "://" in line
+
+
+def clean_text(content):
+    # a separator glued to the end of a command line: "...picon_extract●●●●●"
+    content = re.sub(r"●{5,}", "\n", content)
+    # a title glued to the end of a command line: "...xz★★★ picons ★★★"
+    content = re.sub(r"(\S)(★★★)", r"\1\n\2", content)
+    return content
+
+
+def parse_content(content):
+    """Returns (main_menu, menu_data); main_menu = [(name, key)],
+    menu_data = {key: [(name, command)]}"""
+    menu_data, main_menu = {}, []
+    section, temp_name = None, ""
+
+    for line in clean_text(content).split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+
+        # section header:  ————●●★::| ( Name ) |::★●●————
+        if "————" in line or "::|" in line or ("|" in line and ("★" in line or "●" in line)):
+            name = (line.replace("————", "").replace("★★★", "").replace("●●", "")
+                    .replace("★", "").replace("::", "").replace("|", "")
+                    .strip().strip("()").strip())
+            if name:
+                section = name
+                if section not in menu_data:
+                    menu_data[section] = []
+                    main_menu.append((section, section))
+            temp_name = ""
+            continue
+
+        if section is None:
+            continue
+
+        # command title:  ★★★ Name ★★★
+        if line.startswith("★") and line.endswith("★"):
+            temp_name = line.replace("★★★", "").replace("★", "").strip()
+            continue
+
+        # init codes:  init 0 # Deep Standby
+        if "#" in line and line.split("#")[0].strip().startswith(("init", "reboot")):
+            menu_data[section].append((line, line.split("#")[0].strip()))
+            temp_name = ""
+            continue
+
+        # plain description line -> becomes the title of the next command
+        if not looks_like_command(line):
+            temp_name = line
+            continue
+
+        menu_data[section].append((temp_name or line, line))
+        temp_name = ""
+
+    return main_menu, menu_data
 
 
 class IconList(MenuList):
@@ -223,7 +294,7 @@ class AnowPanelMainScreen(Screen):
     # ------------------------------------------------------------------ data
     def fetch_github_data(self):
         self["title_label"].setText("ANOW PANEL — جاري جلب البيانات...")
-        self["hint_label"].setText("⏳ جاري تحميل القائمة...")
+        self["hint_label"].setText("⏳ جاري التحميل من GitHub...")
         self["menu_list"].setList([])
         d = deferToThread(download, DATA_URL)
         d.addCallback(self.parse_data)
@@ -232,52 +303,12 @@ class AnowPanelMainScreen(Screen):
     def parse_data(self, data):
         try:
             content = data.decode("utf-8", errors="ignore")
-            lines = content.split("\n")
-
-            self.menu_data = {}
-            self.main_menu = []
-            current_section = None
-            temp_name = ""
-
-            for line in lines:
-                line = line.strip()
-
-                if not line or (line.startswith("●") and len(line) > 10):
-                    continue
-
-                if "————" in line or "::|" in line or ("|" in line and ("★" in line or "●" in line)):
-                    clean_section = (line.replace("————", "").replace("★★★", "")
-                                     .replace("●●", "").replace("★", "")
-                                     .replace("::", "").replace("|", "").strip())
-                    if clean_section:
-                        current_section = clean_section
-                        if current_section not in self.menu_data:
-                            self.menu_data[current_section] = []
-                            self.main_menu.append((current_section, current_section))
-                    continue
-
-                if current_section:
-                    if line.startswith("★") and line.endswith("★"):
-                        temp_name = line.replace("★★★", "").replace("★", "").strip()
-                        continue
-
-                    if "#" in line and any(line.split("#")[0].strip().startswith(cmd) for cmd in ["init", "reboot"]):
-                        cmd_part = line.split("#")[0].strip()
-                        name_part = line.strip()
-                        self.menu_data[current_section].append((name_part, cmd_part))
-                        temp_name = ""
-                        continue
-
-                    name = temp_name if temp_name else line
-                    self.menu_data[current_section].append((name, line))
-                    temp_name = ""
-
+            self.main_menu, self.menu_data = parse_content(content)
             if self.main_menu:
                 self.show_main()
             else:
                 self["title_label"].setText("⚠ تنبيه")
                 self["hint_label"].setText("لم يتم العثور على أية أقسام في الملف النصي!")
-
         except Exception as e:
             self["title_label"].setText("❌ خطأ أثناء قراءة البيانات")
             self["hint_label"].setText(str(e))
