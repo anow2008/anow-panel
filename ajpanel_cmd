@@ -39,13 +39,15 @@ wget --no-check-certificate -O /tmp/22channels.tar.gz https://raw.githubusercont
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( picons ) |::★●●————
 ★★★ openpicons ★★★
-wget --no-check-certificate -L -O /tmp/picons.tar.xz "https://openpicons.com/?file=full-motor-utf8snp/hardlink/utf8snp-full.220x132-220x132.light.on.transparent_2026-10-28--18-14-16.hardlink.tar.xz" && mkdir -p /media/hdd/picon && tar -xJf /tmp/picons.tar.xz -C /media/hdd/picon/ --strip-components=1 && rm /tmp/picons.tar.xz★★★ picons eliesat ★★★
+wget --no-check-certificate -L -O /tmp/picons.tar.xz "https://openpicons.com/?file=full-motor-utf8snp/hardlink/utf8snp-full.220x132-220x132.light.on.transparent_2026-11-02--00-46-34.hardlink.tar.xz" && mkdir -p /media/hdd/picon && tar -xJf /tmp/picons.tar.xz -C /media/hdd/picon/ --strip-components=1 && rm /tmp/picons.tar.xz
+
 ★★★ picons eliesat ★★★
 wget -qO- "https://gitlab.com/eliesat/picons/-/raw/main/archive.sh" | sh
+
 ★★★ picons anow ★★★
-cd /media/hdd/picon && wget -qO- https://github.com/anow2008/picon-picon/archive/refs/heads/main.tar.gz | tar xz --strip-components=2 picon-picon-main/picon
-★★★ picons anow 2222 ★★★
+cd /media/hdd/picon && wget -qO- https://github.com/anow2008/picon-picon/archive/refs/heads/main.tar.gz | tar xz --strip-components=2 --unlink-first picon-picon-main/picon
 wget --no-check-certificate -L -O /tmp/picon.tar.gz "https://github.com/anow2008/picon-picon/archive/refs/heads/main.tar.gz" && mkdir -p /tmp/picon_extract && tar -xzf /tmp/picon.tar.gz -C /tmp/picon_extract && mkdir -p /media/hdd/picon && cp -rf /tmp/picon_extract/*/picon/* /media/hdd/picon/ && rm -rf /tmp/picon.tar.gz /tmp/picon_extract●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
+
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( Softcams ) |::★●●————
 ★★★ Oscam-11.726-by-lenuxsat ★★★
@@ -66,6 +68,8 @@ wget -qO- --no-check-certificate https://raw.githubusercontent.com/anow2008/ccca
 ————●●★::| ( EPGImport ) |::★●●————
 ★★★ EPGImport anow ★★★
 wget -O /etc/epgimport/arabic.sources.xml https://raw.githubusercontent.com/anow2008/EPGImport-Sources-egypt/main/arabic.sources.xml && wget -O /etc/epgimport/arabic.channels.xml https://raw.githubusercontent.com/anow2008/EPGImport-Sources-egypt/main/arabic.channels.xml && ls -l /etc/epgimport/arabic.*
+★★★ EPG-Gold ★★★
+wget -q --no-check-certificate -O - https://raw.githubusercontent.com/anow2008/EPG-Gold/main/install.sh | sh
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( Plugins ) |::★●●————
 ★★★ epgimport ★★★  
@@ -108,6 +112,8 @@ wget --no-check-certificate -O /tmp/mytranslator.ipk https://github.com/ismailel
 wget "https://gitlab.com/eliesat/extensions/-/raw/main/subssupport/subssupport-1.5.8-r9.sh" -O - | /bin/sh
 ★★★ Subssupport-mnasr 1.8.0.r8  ★★★
 wget https://gitlab.com/eliesat/extensions/-/raw/main/subssupport/subssupport.sh -qO - | /bin/sh
+★★★ AISubtitles new with apikey ★★★
+wget https://raw.githubusercontent.com/Arian7s/SubExtractorLite/main/installer.sh -O - | /bin/sh
 ●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●●
 ————●●★::| ( biss Plugins ) |::★●●————
 ★★★ BissPro-Smart ★★★
@@ -129,7 +135,7 @@ wget -qO- https://raw.githubusercontent.com/anow2008/anow-panel/main/install.sh 
 ★★★ Aglare-FHD v8.5 ★★★
 wget -q --no-check-certificate -O - https://raw.githubusercontent.com/anow2008/skin/refs/heads/main/skin.sh | sh
 ★★★ premiumfhd-blue ★★★
-wget -qO- --no-check-certificate https://raw.githubusercontent.com/anow2008/skin/main/skins1.sh | bash
+wget -q --no-check-certificate -O - https://raw.githubusercontent.com/anow2008/skin/main/installer.sh | sh
 ★★★ Aglare-FHD pli_7.2 ★★★
 wget -q --no-check-certificate -O - https://raw.githubusercontent.com/anow2008/skin/refs/heads/main/skin2.sh | sh
 ★★★ Fury-FHD ★★★ 
@@ -152,6 +158,8 @@ wget -qO- https://raw.githubusercontent.com/anow2008/ajpanel_cmd/main/remove/rem
 wget -qO- https://raw.githubusercontent.com/anow2008/ajpanel_cmd/main/remove/remove-emus.sh | sh
 ★★★ remove BissPro-Smart ★★★ 
 rm -rf /usr/lib/enigma2/python/Plugins/Extensions/BissPro-Smart && killall -9 enigma2
+★★★ remove EPG-Gold ★★★
+wget -q --no-check-certificate -O /tmp/i.sh https://raw.githubusercontent.com/anow2008/EPG-Gold/main/install.sh && sh /tmp/i.sh remove
 ★★★ remove all picons  ★★★
 MS=""; for path in /media/hdd /media/usb /usr/share/enigma2; do [ -d "$path" ] && MS="$path" && break; done; [ -n "$MS" ] && [ -d "$MS/picon" ] && rm -rf "$MS/picon"/* && echo "DONE: $MS/picon is now empty" || echo "No picon folder found"
 ★★★ remove crash logs  ★★★
