@@ -100,7 +100,7 @@ ICON_KEYWORDS = [
     ("subtitles", ("epgtranslator", "subssupport", "aisubtitles", "mytranslator", "subextractor", "subtitles")),
     
     # Biss & Keys Plugins
-    ("biss", ("bisspro", "keyadder", "furybiss", "biss")),
+    ("bissplugins", ("bisspro", "keyadder", "furybiss", "biss")),
     
     # Panels
     ("panel", ("ajpanel", "ciefppanel", "anowpanel", "panels", "haitham.xml")),
