@@ -65,18 +65,58 @@ FONT_LIST = 28
 ICON_SIZE = 40
 ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
 
-# first matching keyword wins (lower-case, matched inside the section name)
+# Comprehensive keywords mapping for EVERY item in ajpanel_cmd
 ICON_KEYWORDS = [
-    ("softcam", ("softcam", "cam", "emu", "oscam", "ncam", "key", "سوفت", "كام")),
+    # Cams & Softcams
+    ("oscam", ("oscam",)),
+    ("ncam", ("ncam",)),
+    ("config", ("config", "إعدادات", "اعدادات")),
+    ("softcam", ("softcam", "cam", "emu", "key", "سوفت", "كام", "softcam.key")),
+    ("cccam", ("cccam", "free cccam")),
+    
+    # Images & Settings
     ("update", ("update", "upgrade", "ajpanel_cmd", "تحديث", "صورة جديدة", "new image")),
-    ("picons", ("picon", "بيكون")),
-    ("skins", ("skin", "theme", "سكين", "سكن")),
-    ("channels", ("channel", "bouquet", "epg", "settings", "اعدات", "اعدادات", "إعدادات", "قنوات", "قوائم")),
-    ("plugins", ("plugin", "addon", "extension", "بلجن", "اضافات", "إضافات")),
-    ("network", ("network", "ftp", "wifi", "ssh", "telnet", "dns", "astra", "abertis", "شبكة")),
-    ("trash", ("remove", "clean", "delete", "حذف", "تنظيف")),
+    ("channels", ("channel", "bouquet", "epg", "settings", "اعدات", "قنوات", "قوائم", "openatv", "openpli", "ciefpsettings")),
+    
+    # Picons
+    ("picons", ("picon", "بيكون", "openpicons", "eliesat")),
+    
+    # Astra & T2mi
+    ("network", ("network", "ftp", "wifi", "ssh", "telnet", "dns", "astra", "abertis", "شبكة", "sysctl")),
+    
+    # EPG & Guide
+    ("epg", ("epgimport", "epg-gold", "arabic.sources", "arabic.channels")),
+    
+    # Specific Plugins
+    ("cacheflush", ("cacheflush",)),
+    ("arabicsavior", ("arabicsavior", "savior")),
+    ("quicksignal", ("raedquicksignal", "quicksignal")),
+    ("footonsat", ("footonsat",)),
+    ("simplesport", ("simplesport", "sports")),
+    ("ipaudio", ("ipaudiopro", "myaudio", "ipaudioplus", "ip2sat", "sound")),
+    ("servercolor", ("servercolor", "servercoloring")),
+    
+    # Subtitles Plugins
+    ("subtitles", ("epgtranslator", "subssupport", "aisubtitles", "mytranslator", "subextractor", "subtitles")),
+    
+    # Biss & Keys Plugins
+    ("biss", ("bisspro", "keyadder", "furybiss", "biss")),
+    
+    # Panels
+    ("panel", ("ajpanel", "ciefppanel", "anowpanel", "panels", "haitham.xml")),
+    
+    # Skins
+    ("skins", ("skin", "theme", "aglare", "premiumfhd", "fury-fhd", "luka-fhd", "سكن", "سكين")),
+    
+    # Fix & Tools
+    ("ffmpeg", ("ffmpeg", "fix")),
+    ("trash", ("remove", "clean", "delete", "حذف", "تنظيف", "crash")),
     ("backup", ("backup", "restore", "نسخ")),
-    ("power", ("restart", "reboot", "power", "init", "ريستارت", "اعادة", "إعادة")),
+    
+    # Power & Init
+    ("power", ("restart", "reboot", "power", "init", "ريستارت", "اعادة", "إعادة", "deep standby")),
+    
+    # General Fallbacks
     ("run", ("command", "اوامر", "أوامر")),
     ("tools", ("tool", "system", "utility", "panel", "fix", "ادوات", "أدوات", "نظام")),
 ]
@@ -86,6 +126,9 @@ _pix_cache = {}
 
 def get_icon(name):
     if name not in _pix_cache:
+        path = os.path.join(ICON_DIR, name + ".png")
+        if not os.path.exists(path):
+            name = "run"
         _pix_cache[name] = LoadPixmap(os.path.join(ICON_DIR, name + ".png"))
     return _pix_cache[name]
 
@@ -96,7 +139,7 @@ def icon_for(section_name):
         for w in words:
             if w in low:
                 return icon
-    return "default"
+    return "run"
 
 
 # ---------------------------------------------------------------------------
@@ -180,9 +223,7 @@ def looks_like_command(line):
 
 
 def clean_text(content):
-    # a separator glued to the end of a command line: "...picon_extract●●●●●"
     content = re.sub(r"●{5,}", "\n", content)
-    # a title glued to the end of a command line: "...xz★★★ picons ★★★"
     content = re.sub(r"(\S)(★★★)", r"\1\n\2", content)
     return content
 
@@ -198,7 +239,6 @@ def parse_content(content):
         if not line:
             continue
 
-        # section header:  ————●●★::| ( Name ) |::★●●————
         if "————" in line or "::|" in line or ("|" in line and ("★" in line or "●" in line)):
             name = (line.replace("————", "").replace("★★★", "").replace("●●", "")
                     .replace("★", "").replace("::", "").replace("|", "")
@@ -214,18 +254,15 @@ def parse_content(content):
         if section is None:
             continue
 
-        # command title:  ★★★ Name ★★★
         if line.startswith("★") and line.endswith("★"):
             temp_name = line.replace("★★★", "").replace("★", "").strip()
             continue
 
-        # init codes:  init 0 # Deep Standby
         if "#" in line and line.split("#")[0].strip().startswith(("init", "reboot")):
             menu_data[section].append((line, line.split("#")[0].strip()))
             temp_name = ""
             continue
 
-        # plain description line -> becomes the title of the next command
         if not looks_like_command(line):
             temp_name = line
             continue
@@ -252,7 +289,8 @@ class IconList(MenuList):
         width = S(1140)  # inner list width in base units
         out = []
         for name, target in items:
-            icon = icon_for(name) if kind == "section" else "run"
+            icon = icon_for(name)
+
             entry = [(name, target)]
             pix = get_icon(icon)
             if pix:
