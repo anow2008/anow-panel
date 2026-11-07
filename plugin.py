@@ -23,8 +23,8 @@ except ImportError:  # very old images
     from Components.MultiContent import MultiContentEntryPixmapAlphaTest as MultiContentEntryPixmapAlphaBlend
 
 try:
-    from enigma import BT_SCALE, BT_KEEP_ASPECT_RATIO
-    ICON_FLAGS = BT_SCALE | BT_KEEP_ASPECT_RATIO
+    from enigma import BT_SCALE, BT_KEEP_ASPECT_RATIO, BT_HALIGN_CENTER, BT_VALIGN_CENTER
+    ICON_FLAGS = BT_SCALE | BT_KEEP_ASPECT_RATIO | BT_HALIGN_CENTER | BT_VALIGN_CENTER
 except ImportError:
     ICON_FLAGS = 0
 
@@ -34,37 +34,50 @@ DATA_URL = "https://raw.githubusercontent.com/anow2008/ajpanel_cmd/refs/heads/ma
 # Palette
 # ---------------------------------------------------------------------------
 C_BG = "#050b17"        # fallback background (when background.png is missing)
-C_PANEL = "#08101f"     # card / fallback panel
-C_HEADER = "#050b17"    # fallback header strip
-C_ACCENT = "#125aba"    # blue accent (matches background.png lines)
+C_PANEL = "#0a1428"     # list panel / info card
+C_ROW = "#0f1d38"       # list row
+C_SEL = "#125aba"       # selected row (matches background.png lines)
+C_ACCENT = "#125aba"    # blue accent
 C_TITLE = "#5aa9ff"     # title text
-C_TEXT = "#ffffff"      # list text
-C_MUTED = "#8fa3c0"     # hint text
-C_LINE = "#244f8a"      # separators / card border
-C_SEL_BG = "#125aba"    # selection background
-C_SEL_FG = "#ffffff"    # selection text
-C_PLATE = "#0d2347"     # plate behind the preview icon
+C_TEXT = "#ffffff"      # main text
+C_MUTED = "#8fa3c0"     # hint / description text
+C_LINE = "#244f8a"      # panel borders
 C_RED = "#ef4444"
 C_GREEN = "#22c55e"
 
 
 # ---------------------------------------------------------------------------
-# Scale helpers (shared by the skin and the icon list)
+# Auto scaling: everything is designed on a 1920x1080 base, scaled by the
+# smaller of width/height ratios (same method as the BissPro plugin)
 # ---------------------------------------------------------------------------
 try:
-    _DESKTOP_W = getDesktop(0).size().width()
+    _d = getDesktop(0).size()
+    SC = min(_d.width() / 1920.0, _d.height() / 1080.0)
 except Exception:
-    _DESKTOP_W = 1920
-SC = max(0.5, _DESKTOP_W / 1920.0)
+    SC = 1.0
 
 
 def S(v):
-    return int(round(v * SC))
+    return int(v * SC)
 
 
-ROW_H = 56
-FONT_LIST = 28
-ICON_SIZE = 40
+def F(v):
+    return int(max(20, v * SC))
+
+
+def _ci(c):
+    return int(c[1:], 16)
+
+
+# Dimensions (base units) - same as the reference plugin
+ROW_H = 100            # list row height
+ICON_SIZE = 80         # icon inside a row
+FONT_NAME = 34         # row title font
+FONT_DESC = 24         # row description font
+LIST_W = 860           # row width
+LOGO_SIZE = 280        # big preview icon
+CORNER_BOX = 28
+CORNER_ROW = 26
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_DIR = os.path.join(PLUGIN_DIR, "icons")
 BG_PATH = os.path.join(PLUGIN_DIR, "background.png")
@@ -182,77 +195,60 @@ def get_icon(name):
 # ---------------------------------------------------------------------------
 # Skin builder: designed on a 1920 px wide base, scaled to the real desktop
 # ---------------------------------------------------------------------------
+def _rect(x, y, w, h, color, z=1, r=CORNER_BOX):
+    pw, ph = S(w), S(h)
+    rad = min(S(r), ph // 2, pw // 2)
+    corner = ' cornerRadius="%d"' % rad if rad > 0 else ""
+    return '<eLabel position="%d,%d" size="%d,%d" backgroundColor="%s" zPosition="%d"%s />' % (
+        S(x), S(y), pw, ph, color, z, corner)
+
+
+def _widget(name, x, y, w, h, size, fg, align="left", z=4, valign="center"):
+    return ('<widget name="%s" position="%d,%d" size="%d,%d" font="Regular;%d" foregroundColor="%s" '
+            'transparent="1" halign="%s" valign="%s" zPosition="%d" />') % (
+        name, S(x), S(y), S(w), S(h), F(size), fg, align, valign, z)
+
+
 def build_skin():
-    W, H = 1200, 720
-    pad = 50                 # matches the lines drawn in background.png
-    row_h = ROW_H
-    rows = 9
-    list_y = 96
-    list_h = row_h * rows    # 504 -> ends at 600
-    list_w = 650
-    hint_y = list_y + list_h + 6
-    card_x, card_y, card_w, card_h = 750, 96, 400, 504
-    icon_sz = 128
-    cx = card_x + card_w // 2
+    W, H = 1500, 900            # the same size as background.png
+    list_x, list_y, list_h = 50, 115, ROW_H * 6
+    card_x, card_w = 940, 510
+    logo_x = card_x + (card_w - LOGO_SIZE) // 2
 
     if os.path.isfile(BG_PATH):
-        background = (
-            '<ePixmap pixmap="{p}" position="0,0" size="{W},{H}" zPosition="0" alphatest="blend" scale="1" />'
-        ).format(p=BG_PATH, W=S(W), H=S(H))
+        bg = '<ePixmap pixmap="%s" position="0,0" size="%d,%d" zPosition="0" alphatest="blend" scale="1" />' % (
+            BG_PATH, S(W), S(H))
     else:
-        background = (
-            '<eLabel position="0,0" size="{W},{H}" backgroundColor="{a}" zPosition="0" />'
-            '<eLabel position="{b},{b}" size="{iw},{ih}" backgroundColor="{p}" zPosition="1" />'
-        ).format(W=S(W), H=S(H), a=C_ACCENT, p=C_BG, b=S(3), iw=S(W - 6), ih=S(H - 6))
+        bg = _rect(0, 0, W, H, C_BG, 0, 40)
 
-    body = """
-    <screen name="AnowPanelMainScreen" position="center,center" size="{W},{H}" title="anow panel" backgroundColor="#00000000" flags="wfNoBorder">
-        {background}
-
-        <widget name="title_label" position="{pad},{ty}" size="{tw},{th}" font="Regular;{f_title}" halign="center" valign="center" foregroundColor="{title}" backgroundColor="{bg}" transparent="1" zPosition="3" />
-
-        <widget name="menu_list" position="{pad},{ly}" size="{lw},{lh}" font="Regular;{f_list}" itemHeight="{rh}" scrollbarMode="showOnDemand" foregroundColor="{text}" backgroundColor="{bg}" foregroundColorSelected="{selfg}" backgroundColorSelected="{selbg}" transparent="1" zPosition="3" />
-
-        <eLabel position="{cx0},{cy0}" size="{cw},{ch}" backgroundColor="{line}" zPosition="2" />
-        <eLabel position="{cx1},{cy1}" size="{cw2},{ch2}" backgroundColor="{panel}" zPosition="3" />
-        <eLabel position="{px},{py}" size="{ps},{ps}" backgroundColor="{plate}" zPosition="4" />
-        <widget name="preview_icon" position="{ix},{iy}" size="{isz},{isz}" alphatest="blend" scale="1" zPosition="5" />
-        <widget name="preview_name" position="{nx},{ny}" size="{nw},{nh}" font="Regular;{f_name}" halign="center" valign="top" foregroundColor="{text}" backgroundColor="{panel}" transparent="1" zPosition="5" />
-        <widget name="preview_info" position="{nx},{iy2}" size="{nw},{ih2}" font="Regular;{f_info}" halign="center" valign="top" foregroundColor="{muted}" backgroundColor="{panel}" transparent="1" zPosition="5" />
-
-        <widget name="hint_label" position="{pad},{hy}" size="{tw},{hh2}" font="Regular;{f_hint}" halign="left" valign="center" foregroundColor="{muted}" backgroundColor="{bg}" transparent="1" zPosition="3" />
-
-        <eLabel position="{pad},{by}" size="{sq},{sq}" backgroundColor="{red}" zPosition="3" />
-        <widget name="key_red" position="{k1x},{by_t}" size="{kw},{kh}" font="Regular;{f_key}" halign="left" valign="center" foregroundColor="{text}" backgroundColor="{bg}" transparent="1" zPosition="3" />
-        <eLabel position="{g_sq},{by}" size="{sq},{sq}" backgroundColor="{green}" zPosition="3" />
-        <widget name="key_green" position="{k2x},{by_t}" size="{kw},{kh}" font="Regular;{f_key}" halign="left" valign="center" foregroundColor="{text}" backgroundColor="{bg}" transparent="1" zPosition="3" />
-    </screen>
-    """
-    btn_y = 672
-    plate = 160
-    icon_y = card_y + 60
-    name_y = icon_y + plate + 20
-    return body.format(
-        background=background,
-        W=S(W), H=S(H),
-        pad=S(pad), ty=S(10), tw=S(W - 2 * pad), th=S(58), f_title=S(34),
-        ly=S(list_y), lw=S(list_w), lh=S(list_h), rh=S(row_h), f_list=S(FONT_LIST),
-        cx0=S(card_x), cy0=S(card_y), cw=S(card_w), ch=S(card_h),
-        cx1=S(card_x + 2), cy1=S(card_y + 2), cw2=S(card_w - 4), ch2=S(card_h - 4),
-        px=S(cx - plate // 2), py=S(icon_y), ps=S(plate),
-        ix=S(cx - icon_sz // 2), iy=S(icon_y + (plate - icon_sz) // 2), isz=S(icon_sz),
-        nx=S(card_x + 20), nw=S(card_w - 40),
-        ny=S(name_y), nh=S(100), f_name=S(30),
-        iy2=S(name_y + 105), ih2=S(80), f_info=S(24),
-        hy=S(hint_y), hh2=S(40), f_hint=S(24),
-        by=S(btn_y), by_t=S(btn_y - 6), sq=S(26),
-        k1x=S(pad + 40), kw=S(300), kh=S(38), f_key=S(24),
-        g_sq=S(pad + 380), k2x=S(pad + 420),
-        bg=C_BG, panel=C_PANEL, accent=C_ACCENT,
-        title=C_TITLE, text=C_TEXT, muted=C_MUTED, line=C_LINE,
-        selbg=C_SEL_BG, selfg=C_SEL_FG, red=C_RED, green=C_GREEN,
-        plate=C_PLATE,
-    )
+    parts = [
+        '<screen name="AnowPanelMainScreen" position="center,center" size="%d,%d" title="anow panel" '
+        'backgroundColor="#00000000" flags="wfNoBorder">' % (S(W), S(H)),
+        bg,
+        _widget("title_label", 50, 12, 1400, 68, 44, C_TITLE, "center"),
+        # borders + panels (list on the left, info card on the right)
+        _rect(38, 103, 884, 624, C_LINE, 1),
+        _rect(40, 105, 880, 620, C_PANEL, 2),
+        _rect(938, 103, 514, 624, C_LINE, 1),
+        _rect(940, 105, 510, 620, C_PANEL, 2),
+        '<widget name="menu_list" position="%d,%d" size="%d,%d" itemHeight="%d" scrollbarMode="showNever" '
+        'backgroundColor="%s" backgroundColorSelected="%s" foregroundColor="%s" foregroundColorSelected="%s" '
+        'zPosition="3" />' % (S(list_x), S(list_y), S(LIST_W), S(list_h), S(ROW_H),
+                              C_PANEL, C_SEL, C_TEXT, C_TEXT),
+        # big icon of the highlighted row
+        '<widget name="preview_icon" position="%d,%d" size="%d,%d" alphatest="blend" scale="1" zPosition="3" />' % (
+            S(logo_x), S(150), S(LOGO_SIZE), S(LOGO_SIZE)),
+        _widget("preview_name", card_x + 20, 450, card_w - 40, 110, 40, C_TEXT, "center", 4, "top"),
+        _widget("preview_info", card_x + 20, 570, card_w - 40, 60, 28, C_MUTED, "center", 4, "top"),
+        _widget("hint_label", 50, 745, 1400, 60, 30, C_MUTED, "left", 4),
+        # colour keys under the bottom line of the background
+        _rect(50, 847, 26, 26, C_RED, 4, 6),
+        _widget("key_red", 88, 835, 280, 50, 24, C_TEXT, "left", 4),
+        _rect(380, 847, 26, 26, C_GREEN, 4, 6),
+        _widget("key_green", 418, 835, 320, 50, 24, C_TEXT, "left", 4),
+        '</screen>',
+    ]
+    return "\n".join(parts)
 
 
 def download(url):
@@ -337,32 +333,54 @@ def parse_content(content):
     return main_menu, menu_data
 
 
+def _row_bg(w, h):
+    kw = dict(pos=(0, S(3)), size=(w, h - S(6)), font=0, text="",
+              backcolor=_ci(C_ROW), backcolor_sel=_ci(C_SEL))
+    try:
+        return MultiContentEntryText(cornerRadius=S(CORNER_ROW), **kw)
+    except TypeError:  # old images ignore rounded corners
+        return MultiContentEntryText(**kw)
+
+
 class IconList(MenuList):
-    """List with a small icon in front of every row."""
+    """Rows like the BissPro plugin: rounded row, 80px icon, title + description."""
 
     def __init__(self):
         MenuList.__init__(self, [], False, eListboxPythonMultiContent)
-        self.l.setFont(0, gFont("Regular", S(FONT_LIST)))
+        self.l.setFont(0, gFont("Regular", F(FONT_NAME)))
+        self.l.setFont(1, gFont("Regular", F(FONT_DESC)))
         self.l.setItemHeight(S(ROW_H))
 
     def build(self, items, kind, section=None):
-        """Build rows with exact per-section/per-command icon assignment."""
-        row_h, ico = S(ROW_H), S(ICON_SIZE)
-        x_ico = S(14)
-        x_txt = x_ico + ico + S(16)
-        width = S(1140)  # inner list width in base units
+        w, h = S(LIST_W), S(ROW_H)
+        ico = S(ICON_SIZE)
+        x_ico = S(10)
+        x_txt = S(105)
+        tw = w - x_txt - S(10)
+        flags = RT_HALIGN_LEFT | RT_VALIGN_CENTER
         out = []
         for name, target in items:
             icon = icon_for(name, kind, section, target)
+            if kind == "section":
+                desc = "%d أمر" % len(self.owner_data.get(target, [])) if hasattr(self, "owner_data") else ""
+            elif str(name).strip() == str(target).strip():
+                desc = section or ""
+            else:
+                desc = str(target).strip().replace("\n", " ")
+                if len(desc) > 70:
+                    desc = desc[:67] + "..."
 
-            entry = [(name, target, icon)]
+            entry = [(name, target, icon, desc), _row_bg(w, h)]
             pix = get_icon(icon)
             if pix:
                 entry.append(MultiContentEntryPixmapAlphaBlend(
-                    pos=(x_ico, (row_h - ico) // 2), size=(ico, ico), png=pix, flags=ICON_FLAGS))
+                    pos=(x_ico, S(10)), size=(ico, ico), png=pix, flags=ICON_FLAGS))
             entry.append(MultiContentEntryText(
-                pos=(x_txt, 0), size=(width - x_txt, row_h), font=0,
-                flags=RT_HALIGN_LEFT | RT_VALIGN_CENTER, text=name))
+                pos=(x_txt, S(10)), size=(tw, S(45)), font=0, flags=flags, text=name,
+                color=_ci(C_TEXT), color_sel=_ci(C_TEXT)))
+            entry.append(MultiContentEntryText(
+                pos=(x_txt, S(55)), size=(tw, S(35)), font=1, flags=flags, text=desc,
+                color=_ci(C_MUTED), color_sel=_ci("#dbe8ff")))
             out.append(entry)
         self.setList(out)
 
@@ -387,6 +405,7 @@ class AnowPanelMainScreen(Screen):
         self.current_menu = "main"
         self.current_section = ""
         self["menu_list"] = IconList()
+        self["menu_list"].owner_data = self.menu_data
         self["menu_list"].onSelectionChanged.append(self.update_preview)
 
         self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
@@ -412,6 +431,7 @@ class AnowPanelMainScreen(Screen):
         try:
             content = data.decode("utf-8", errors="ignore")
             self.main_menu, self.menu_data = parse_content(content)
+            self["menu_list"].owner_data = self.menu_data
             if self.main_menu:
                 self.show_main()
             else:
@@ -502,7 +522,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel",
-        description="لوحة التحكم الذكية v1.0 - anow2008",
+        description="لوحة التحكم الذكية v2.0 - anow2008",
         where=PluginDescriptor.WHERE_PLUGINMENU,
         icon="plugin.png",
         fnc=main
