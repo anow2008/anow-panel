@@ -361,26 +361,14 @@ class IconList(MenuList):
         out = []
         for name, target in items:
             icon = icon_for(name, kind, section, target)
-            if kind == "section":
-                desc = "%d أمر" % len(self.owner_data.get(target, [])) if hasattr(self, "owner_data") else ""
-            elif str(name).strip() == str(target).strip():
-                desc = section or ""
-            else:
-                desc = str(target).strip().replace("\n", " ")
-                if len(desc) > 70:
-                    desc = desc[:67] + "..."
-
-            entry = [(name, target, icon, desc), _row_bg(w, h)]
+            entry = [(name, target, icon), _row_bg(w, h)]
             pix = get_icon(icon)
             if pix:
                 entry.append(MultiContentEntryPixmapAlphaBlend(
                     pos=(x_ico, S(10)), size=(ico, ico), png=pix, flags=ICON_FLAGS))
             entry.append(MultiContentEntryText(
-                pos=(x_txt, S(10)), size=(tw, S(45)), font=0, flags=flags, text=name,
+                pos=(x_txt, 0), size=(tw, h), font=0, flags=flags, text=name,
                 color=_ci(C_TEXT), color_sel=_ci(C_TEXT)))
-            entry.append(MultiContentEntryText(
-                pos=(x_txt, S(55)), size=(tw, S(35)), font=1, flags=flags, text=desc,
-                color=_ci(C_MUTED), color_sel=_ci("#dbe8ff")))
             out.append(entry)
         self.setList(out)
 
@@ -405,7 +393,6 @@ class AnowPanelMainScreen(Screen):
         self.current_menu = "main"
         self.current_section = ""
         self["menu_list"] = IconList()
-        self["menu_list"].owner_data = self.menu_data
         self["menu_list"].onSelectionChanged.append(self.update_preview)
 
         self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
@@ -431,7 +418,6 @@ class AnowPanelMainScreen(Screen):
         try:
             content = data.decode("utf-8", errors="ignore")
             self.main_menu, self.menu_data = parse_content(content)
-            self["menu_list"].owner_data = self.menu_data
             if self.main_menu:
                 self.show_main()
             else:
@@ -502,6 +488,18 @@ class AnowPanelMainScreen(Screen):
             self.execute_command(selection_name, selection_target)
 
     def execute_command(self, name, cmd):
+        """Ask yes/no first; the command only runs after the user confirms."""
+        self.session.openWithCallback(
+            lambda answer: self.run_command(answer, name, cmd),
+            MessageBox,
+            "هل تريد تنفيذ هذا الأمر؟\n\n" + str(name),
+            MessageBox.TYPE_YESNO,
+            default=False,
+        )
+
+    def run_command(self, answer, name, cmd):
+        if not answer:
+            return
         try:
             from Screens.Console import Console
             self.session.open(Console, title=str(name), cmdlist=[str(cmd).strip()])
@@ -522,7 +520,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel",
-        description="لوحة التحكم الذكية v2.0 - anow2008",
+        description="لوحة التحكم الذكية v1.0 - anow2008",
         where=PluginDescriptor.WHERE_PLUGINMENU,
         icon="plugin.png",
         fnc=main
