@@ -7,6 +7,7 @@ from Screens.MessageBox import MessageBox
 from Components.MenuList import MenuList
 from Components.ActionMap import ActionMap
 from Components.Label import Label
+from Components.Pixmap import Pixmap
 from Tools.LoadPixmap import LoadPixmap
 from enigma import getDesktop, gFont, eListboxPythonMultiContent, RT_HALIGN_LEFT, RT_VALIGN_CENTER
 from twisted.internet.threads import deferToThread
@@ -32,16 +33,17 @@ DATA_URL = "https://raw.githubusercontent.com/anow2008/ajpanel_cmd/refs/heads/ma
 # ---------------------------------------------------------------------------
 # Palette
 # ---------------------------------------------------------------------------
-C_BG = "#0b1220"        # outer background
-C_PANEL = "#111c33"     # main panel
-C_HEADER = "#0b1220"    # header strip
-C_ACCENT = "#06b6d4"    # cyan accent
-C_TITLE = "#38bdf8"     # title text
+C_BG = "#050b17"        # fallback background (when background.png is missing)
+C_PANEL = "#08101f"     # card / fallback panel
+C_HEADER = "#050b17"    # fallback header strip
+C_ACCENT = "#125aba"    # blue accent (matches background.png lines)
+C_TITLE = "#5aa9ff"     # title text
 C_TEXT = "#ffffff"      # list text
-C_MUTED = "#94a3b8"     # hint text
-C_LINE = "#334155"      # separators
-C_SEL_BG = "#06b6d4"    # selection background
-C_SEL_FG = "#0b1220"    # selection text
+C_MUTED = "#8fa3c0"     # hint text
+C_LINE = "#244f8a"      # separators / card border
+C_SEL_BG = "#125aba"    # selection background
+C_SEL_FG = "#ffffff"    # selection text
+C_PLATE = "#0d2347"     # plate behind the preview icon
 C_RED = "#ef4444"
 C_GREEN = "#22c55e"
 
@@ -63,7 +65,9 @@ def S(v):
 ROW_H = 56
 FONT_LIST = 28
 ICON_SIZE = 40
-ICON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons")
+PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+ICON_DIR = os.path.join(PLUGIN_DIR, "icons")
+BG_PATH = os.path.join(PLUGIN_DIR, "background.png")
 
 # Exact icon mapping: each online section and each command has its own icon.
 # Keep these names in sync with the PNG files in the local icons/ directory.
@@ -180,47 +184,74 @@ def get_icon(name):
 # ---------------------------------------------------------------------------
 def build_skin():
     W, H = 1200, 720
-    pad = 30
+    pad = 50                 # matches the lines drawn in background.png
     row_h = ROW_H
-    rows = 8
-    list_y = 115
-    list_h = row_h * rows
-    sep_y = list_y + list_h + 14
-    hint_y = sep_y + 10
-    btn_y = hint_y + 62
+    rows = 9
+    list_y = 96
+    list_h = row_h * rows    # 504 -> ends at 600
+    list_w = 650
+    hint_y = list_y + list_h + 6
+    card_x, card_y, card_w, card_h = 750, 96, 400, 504
+    icon_sz = 128
+    cx = card_x + card_w // 2
 
-    return """
-    <screen name="AnowPanelMainScreen" position="center,center" size="{W},{H}" title="anow panel" backgroundColor="{bg}" flags="wfNoBorder">
-        <eLabel position="0,0" size="{W},{H}" backgroundColor="{accent}" zPosition="0" />
-        <eLabel position="{b},{b}" size="{iw},{ih}" backgroundColor="{panel}" zPosition="1" />
+    if os.path.isfile(BG_PATH):
+        background = (
+            '<ePixmap pixmap="{p}" position="0,0" size="{W},{H}" zPosition="0" alphatest="blend" scale="1" />'
+        ).format(p=BG_PATH, W=S(W), H=S(H))
+    else:
+        background = (
+            '<eLabel position="0,0" size="{W},{H}" backgroundColor="{a}" zPosition="0" />'
+            '<eLabel position="{b},{b}" size="{iw},{ih}" backgroundColor="{p}" zPosition="1" />'
+        ).format(W=S(W), H=S(H), a=C_ACCENT, p=C_BG, b=S(3), iw=S(W - 6), ih=S(H - 6))
 
-        <eLabel position="{b},{b}" size="{iw},{hh}" backgroundColor="{header}" zPosition="2" />
-        <widget name="title_label" position="{pad},{ty}" size="{tw},{th}" font="Regular;{f_title}" halign="center" valign="center" foregroundColor="{title}" backgroundColor="{header}" transparent="1" zPosition="3" />
-        <eLabel position="{b},{hl}" size="{iw},{S4}" backgroundColor="{accent}" zPosition="3" />
+    body = """
+    <screen name="AnowPanelMainScreen" position="center,center" size="{W},{H}" title="anow panel" backgroundColor="#00000000" flags="wfNoBorder">
+        {background}
 
-        <widget name="menu_list" position="{pad},{ly}" size="{tw},{lh}" font="Regular;{f_list}" itemHeight="{rh}" scrollbarMode="showOnDemand" foregroundColor="{text}" backgroundColor="{panel}" foregroundColorSelected="{selfg}" backgroundColorSelected="{selbg}" transparent="0" zPosition="3" />
+        <widget name="title_label" position="{pad},{ty}" size="{tw},{th}" font="Regular;{f_title}" halign="center" valign="center" foregroundColor="{title}" backgroundColor="{bg}" transparent="1" zPosition="3" />
 
-        <eLabel position="{pad},{sy}" size="{tw},{S2}" backgroundColor="{line}" zPosition="3" />
-        <widget name="hint_label" position="{pad},{hy}" size="{tw},{hh2}" font="Regular;{f_hint}" halign="left" valign="center" foregroundColor="{muted}" backgroundColor="{panel}" transparent="1" zPosition="3" />
+        <widget name="menu_list" position="{pad},{ly}" size="{lw},{lh}" font="Regular;{f_list}" itemHeight="{rh}" scrollbarMode="showOnDemand" foregroundColor="{text}" backgroundColor="{bg}" foregroundColorSelected="{selfg}" backgroundColorSelected="{selbg}" transparent="1" zPosition="3" />
+
+        <eLabel position="{cx0},{cy0}" size="{cw},{ch}" backgroundColor="{line}" zPosition="2" />
+        <eLabel position="{cx1},{cy1}" size="{cw2},{ch2}" backgroundColor="{panel}" zPosition="3" />
+        <eLabel position="{px},{py}" size="{ps},{ps}" backgroundColor="{plate}" zPosition="4" />
+        <widget name="preview_icon" position="{ix},{iy}" size="{isz},{isz}" alphatest="blend" scale="1" zPosition="5" />
+        <widget name="preview_name" position="{nx},{ny}" size="{nw},{nh}" font="Regular;{f_name}" halign="center" valign="top" foregroundColor="{text}" backgroundColor="{panel}" transparent="1" zPosition="5" />
+        <widget name="preview_info" position="{nx},{iy2}" size="{nw},{ih2}" font="Regular;{f_info}" halign="center" valign="top" foregroundColor="{muted}" backgroundColor="{panel}" transparent="1" zPosition="5" />
+
+        <widget name="hint_label" position="{pad},{hy}" size="{tw},{hh2}" font="Regular;{f_hint}" halign="left" valign="center" foregroundColor="{muted}" backgroundColor="{bg}" transparent="1" zPosition="3" />
 
         <eLabel position="{pad},{by}" size="{sq},{sq}" backgroundColor="{red}" zPosition="3" />
-        <widget name="key_red" position="{k1x},{by_t}" size="{kw},{kh}" font="Regular;{f_key}" halign="left" valign="center" foregroundColor="{text}" backgroundColor="{panel}" transparent="1" zPosition="3" />
+        <widget name="key_red" position="{k1x},{by_t}" size="{kw},{kh}" font="Regular;{f_key}" halign="left" valign="center" foregroundColor="{text}" backgroundColor="{bg}" transparent="1" zPosition="3" />
         <eLabel position="{g_sq},{by}" size="{sq},{sq}" backgroundColor="{green}" zPosition="3" />
-        <widget name="key_green" position="{k2x},{by_t}" size="{kw},{kh}" font="Regular;{f_key}" halign="left" valign="center" foregroundColor="{text}" backgroundColor="{panel}" transparent="1" zPosition="3" />
+        <widget name="key_green" position="{k2x},{by_t}" size="{kw},{kh}" font="Regular;{f_key}" halign="left" valign="center" foregroundColor="{text}" backgroundColor="{bg}" transparent="1" zPosition="3" />
     </screen>
-    """.format(
+    """
+    btn_y = 672
+    plate = 160
+    icon_y = card_y + 60
+    name_y = icon_y + plate + 20
+    return body.format(
+        background=background,
         W=S(W), H=S(H),
-        b=S(3), iw=S(W - 6), ih=S(H - 6),
-        hh=S(90), hl=S(90), S4=S(4), S2=S(2),
-        pad=S(pad), ty=S(18), tw=S(W - 2 * pad), th=S(58), f_title=S(34),
-        ly=S(list_y), lh=S(list_h), rh=S(row_h), f_list=S(FONT_LIST),
-        sy=S(sep_y), hy=S(hint_y), hh2=S(40), f_hint=S(24),
+        pad=S(pad), ty=S(10), tw=S(W - 2 * pad), th=S(58), f_title=S(34),
+        ly=S(list_y), lw=S(list_w), lh=S(list_h), rh=S(row_h), f_list=S(FONT_LIST),
+        cx0=S(card_x), cy0=S(card_y), cw=S(card_w), ch=S(card_h),
+        cx1=S(card_x + 2), cy1=S(card_y + 2), cw2=S(card_w - 4), ch2=S(card_h - 4),
+        px=S(cx - plate // 2), py=S(icon_y), ps=S(plate),
+        ix=S(cx - icon_sz // 2), iy=S(icon_y + (plate - icon_sz) // 2), isz=S(icon_sz),
+        nx=S(card_x + 20), nw=S(card_w - 40),
+        ny=S(name_y), nh=S(100), f_name=S(30),
+        iy2=S(name_y + 105), ih2=S(80), f_info=S(24),
+        hy=S(hint_y), hh2=S(40), f_hint=S(24),
         by=S(btn_y), by_t=S(btn_y - 6), sq=S(26),
         k1x=S(pad + 40), kw=S(300), kh=S(38), f_key=S(24),
         g_sq=S(pad + 380), k2x=S(pad + 420),
-        bg=C_BG, panel=C_PANEL, header=C_HEADER, accent=C_ACCENT,
+        bg=C_BG, panel=C_PANEL, accent=C_ACCENT,
         title=C_TITLE, text=C_TEXT, muted=C_MUTED, line=C_LINE,
         selbg=C_SEL_BG, selfg=C_SEL_FG, red=C_RED, green=C_GREEN,
+        plate=C_PLATE,
     )
 
 
@@ -324,7 +355,7 @@ class IconList(MenuList):
         for name, target in items:
             icon = icon_for(name, kind, section, target)
 
-            entry = [(name, target)]
+            entry = [(name, target, icon)]
             pix = get_icon(icon)
             if pix:
                 entry.append(MultiContentEntryPixmapAlphaBlend(
@@ -347,11 +378,16 @@ class AnowPanelMainScreen(Screen):
         self["hint_label"] = Label("")
         self["key_red"] = Label("خروج (Exit)")
         self["key_green"] = Label("تحديث (Refresh)")
+        self["preview_icon"] = Pixmap()
+        self["preview_name"] = Label("")
+        self["preview_info"] = Label("")
 
         self.menu_data = {}
         self.main_menu = []
         self.current_menu = "main"
+        self.current_section = ""
         self["menu_list"] = IconList()
+        self["menu_list"].onSelectionChanged.append(self.update_preview)
 
         self["actions"] = ActionMap(["SetupActions", "ColorActions"], {
             "ok": self.ok_pressed,
@@ -367,6 +403,7 @@ class AnowPanelMainScreen(Screen):
         self["title_label"].setText("ANOW PANEL — جاري جلب البيانات...")
         self["hint_label"].setText("⏳ جاري التحميل من GitHub...")
         self["menu_list"].setList([])
+        self.clear_preview()
         d = deferToThread(download, DATA_URL)
         d.addCallback(self.parse_data)
         d.addErrback(self.fetch_failed)
@@ -388,11 +425,39 @@ class AnowPanelMainScreen(Screen):
         self["title_label"].setText("❌ فشل الاتصال بالسيرفر!")
         self["hint_label"].setText("تأكد من الشبكة أو الرابط (اضغط الأخضر لإعادة المحاولة)")
 
+    # --------------------------------------------------------------- preview
+    def clear_preview(self):
+        self["preview_name"].setText("")
+        self["preview_info"].setText("")
+        self["preview_icon"].hide()
+
+    def update_preview(self):
+        """Show the big icon + name of the highlighted row in the right card."""
+        selected = self["menu_list"].getCurrent()
+        if not selected:
+            self.clear_preview()
+            return
+        name, target, icon = selected[0][0], selected[0][1], selected[0][2]
+        if self.current_menu == "main":
+            count = len(self.menu_data.get(target, []))
+            info = "%d أمر" % count
+        else:
+            info = self.current_section
+        self["preview_name"].setText(str(name))
+        self["preview_info"].setText(str(info))
+        pix = get_icon(icon)
+        if pix and self["preview_icon"].instance:
+            self["preview_icon"].instance.setPixmap(pix)
+            self["preview_icon"].show()
+        else:
+            self["preview_icon"].hide()
+
     # ------------------------------------------------------------ navigation
     def show_main(self):
         self.current_menu = "main"
         self["menu_list"].build(self.main_menu, "section")
         self["menu_list"].moveToIndex(0)
+        self.update_preview()
         self["title_label"].setText("ANOW PANEL — الأقسام الرئيسية")
         self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
 
@@ -407,10 +472,12 @@ class AnowPanelMainScreen(Screen):
         if self.current_menu == "main":
             if selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
+                self.current_section = selection_name
                 self["title_label"].setText("قسم: " + selection_name)
                 self["hint_label"].setText("⚡ OK لتشغيل السكريبت  |  Cancel للعودة")
                 self["menu_list"].build(self.menu_data[selection_target], "command", selection_target)
                 self["menu_list"].moveToIndex(0)
+                self.update_preview()
         else:
             self.execute_command(selection_name, selection_target)
 
@@ -435,7 +502,7 @@ def main(session, **kwargs):
 def Plugins(**kwargs):
     return PluginDescriptor(
         name="anow panel",
-        description="لوحة التحكم الذكية v2.0 - anow2008",
+        description="لوحة التحكم الذكية v1.0 - anow2008",
         where=PluginDescriptor.WHERE_PLUGINMENU,
         icon="plugin.png",
         fnc=main
