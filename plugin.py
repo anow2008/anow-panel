@@ -13,6 +13,8 @@ from enigma import getDesktop, gFont, eListboxPythonMultiContent, RT_HALIGN_LEFT
 from twisted.internet.threads import deferToThread
 import os
 import re
+import glob
+from shlex import quote
 import ssl
 import urllib.request
 
@@ -106,6 +108,7 @@ SECTION_ICONS = {
     "clean": "clean",
     "ajpanel_cmd": "commandsfile",
     "init codes": "power",
+    "install files": "opkginstall",
 }
 
 # Command labels are matched exactly (case-insensitive); no broad substring
@@ -145,6 +148,7 @@ ITEM_ICONS = {
     "remove crash logs": "removelogs", "clean": "clean",
     "ajpanel_cmd": "commandsfile", "haitham.xml": "xmlfile",
     "init codes": "power",
+    "install files": "opkginstall",
 }
 
 # A distinct icon for any unlisted command, based on its parent section.
@@ -164,10 +168,72 @@ COMMAND_PREFIX_ICONS = (
     ("reboot", "power"),
 )
 
+# ---------------------------------------------------------------------------
+# "Install Files": install .ipk / .tar.gz files found on HDD / USB / /tmp
+# ---------------------------------------------------------------------------
+INSTALL_SECTION = "Install Files"
+INSTALL_TARGET = "__install_files__"
+INSTALL_EXTS = (".ipk", ".tar.gz", ".tgz")
+SCAN_SKIP_DIRS = ("movie", "picon", "epg", "timeshift", "lost+found")
+SCAN_MAX_DEPTH = 2          # root folder + 2 levels of sub folders
+SCAN_MAX_FILES = 300
+
+
+def _scan_roots():
+    roots = ["/media/hdd", "/media/usb", "/media/mmc", "/hdd", "/tmp"]
+    for p in sorted(glob.glob("/media/*")) + sorted(glob.glob("/autofs/*")):
+        if p not in roots:
+            roots.append(p)
+    return [r for r in roots if os.path.isdir(r)]
+
+
+def find_install_files(roots=None, max_depth=SCAN_MAX_DEPTH):
+    """Return [(file name, full path)] for every .ipk / .tar.gz / .tgz found."""
+    found, seen = [], set()
+    for root in (roots if roots is not None else _scan_roots()):
+        real = os.path.realpath(root)
+        if real in seen:
+            continue
+        seen.add(real)
+        base = real.rstrip(os.sep).count(os.sep)
+        for cur, dirs, files in os.walk(real):
+            depth = cur.rstrip(os.sep).count(os.sep) - base
+            if depth >= max_depth:
+                dirs[:] = []
+            else:
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d.lower() not in SCAN_SKIP_DIRS]
+            for f in files:
+                if not f.startswith(".") and f.lower().endswith(INSTALL_EXTS):
+                    found.append((f, os.path.join(cur, f)))
+            if len(found) >= SCAN_MAX_FILES:
+                break
+        if len(found) >= SCAN_MAX_FILES:
+            break
+    found.sort(key=lambda item: item[0].lower())
+    return found[:SCAN_MAX_FILES]
+
+
+def human_size(n):
+    n = float(n)
+    for unit in ("B", "KB", "MB"):
+        if n < 1024:
+            return ("%d %s" if unit == "B" else "%.1f %s") % (n, unit)
+        n /= 1024.0
+    return "%.1f GB" % n
+
+
+def install_command(path):
+    if path.lower().endswith(".ipk"):
+        return "opkg install %s" % quote(path)
+    return "tar -xzf %s -C /" % quote(path)
+
+
 def icon_for(name, kind="command", section=None, target=None):
     key = _icon_key(name)
     if kind == "section":
         return SECTION_ICONS.get(key, "folder")
+    if _icon_key(section) == _icon_key(INSTALL_SECTION):
+        return "opkginstall" if str(target).lower().endswith(".ipk") else "archive"
     exact = ITEM_ICONS.get(key)
     if exact:
         return exact
@@ -392,6 +458,7 @@ class AnowPanelMainScreen(Screen):
         self.main_menu = []
         self.current_menu = "main"
         self.current_section = ""
+        self._scanning = False
         self["menu_list"] = IconList()
         self["menu_list"].onSelectionChanged.append(self.update_preview)
 
@@ -419,6 +486,7 @@ class AnowPanelMainScreen(Screen):
             content = data.decode("utf-8", errors="ignore")
             self.main_menu, self.menu_data = parse_content(content)
             if self.main_menu:
+                self.main_menu = [(INSTALL_SECTION, INSTALL_TARGET)] + list(self.main_menu)
                 self.show_main()
             else:
                 self["title_label"].setText("⚠ تنبيه")
@@ -445,10 +513,20 @@ class AnowPanelMainScreen(Screen):
             return
         name, target, icon = selected[0][0], selected[0][1], selected[0][2]
         if self.current_menu == "main":
-            count = len(self.menu_data.get(target, []))
-            info = "%d أمر" % count
+            if target == INSTALL_TARGET:
+                info = "IPK / TAR.GZ"
+            else:
+                info = "%d أمر" % len(self.menu_data.get(target, []))
+        elif self.current_section == INSTALL_SECTION:
+            try:
+                info = human_size(os.path.getsize(target)) + "\n" + os.path.dirname(target)
+            except Exception:
+                info = os.path.dirname(target)
         else:
             info = self.current_section
+        name = str(name)
+        if len(name) > 42:
+            name = name[:39] + "..."
         self["preview_name"].setText(str(name))
         self["preview_info"].setText(str(info))
         pix = get_icon(icon)
@@ -476,7 +554,9 @@ class AnowPanelMainScreen(Screen):
         selection_target = str(selected[0][1])
 
         if self.current_menu == "main":
-            if selection_target in self.menu_data and self.menu_data[selection_target]:
+            if selection_target == INSTALL_TARGET:
+                self.open_install_files()
+            elif selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
                 self.current_section = selection_name
                 self["title_label"].setText("قسم: " + selection_name)
@@ -484,6 +564,8 @@ class AnowPanelMainScreen(Screen):
                 self["menu_list"].build(self.menu_data[selection_target], "command", selection_target)
                 self["menu_list"].moveToIndex(0)
                 self.update_preview()
+        elif self.current_section == INSTALL_SECTION:
+            self.install_file(selection_name, selection_target)
         else:
             self.execute_command(selection_name, selection_target)
 
@@ -506,7 +588,75 @@ class AnowPanelMainScreen(Screen):
         except Exception as e:
             self.session.open(MessageBox, "خطأ أثناء التنفيذ: " + str(e), MessageBox.TYPE_ERROR)
 
+    # --------------------------------------------------------- install files
+    def open_install_files(self):
+        self._scanning = True
+        self["hint_label"].setText("⏳ جاري البحث عن ملفات ipk و tar.gz ...")
+        d = deferToThread(find_install_files)
+        d.addCallback(self.install_files_found)
+        d.addErrback(self.install_scan_failed)
+
+    def install_files_found(self, files):
+        if not self._scanning:
+            return
+        self._scanning = False
+        if not files:
+            self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
+            self.session.open(
+                MessageBox,
+                "لم يتم العثور على ملفات ipk أو tar.gz في:\n/media/hdd  /media/usb  /tmp",
+                MessageBox.TYPE_INFO,
+            )
+            return
+        self.menu_data[INSTALL_TARGET] = files
+        self.current_menu = "sub"
+        self.current_section = INSTALL_SECTION
+        self["title_label"].setText("قسم: " + INSTALL_SECTION)
+        self["hint_label"].setText("📦 OK للتثبيت  |  Cancel للعودة")
+        self["menu_list"].build(files, "command", INSTALL_SECTION)
+        self["menu_list"].moveToIndex(0)
+        self.update_preview()
+
+    def install_scan_failed(self, error):
+        self._scanning = False
+        self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
+        self.session.open(MessageBox, "خطأ أثناء البحث عن الملفات: " + str(error.getErrorMessage()),
+                          MessageBox.TYPE_ERROR)
+
+    def install_file(self, name, path):
+        if not os.path.isfile(path):
+            self.session.open(MessageBox, "الملف غير موجود:\n" + path, MessageBox.TYPE_ERROR)
+            return
+        text = "هل تريد تثبيت هذا الملف؟\n\n" + str(name)
+        if not path.lower().endswith(".ipk"):
+            text += "\n\nسيتم فك الضغط على النظام (/)"
+        self.session.openWithCallback(
+            lambda answer: self.run_install(answer, name, path),
+            MessageBox, text, MessageBox.TYPE_YESNO, default=False,
+        )
+
+    def run_install(self, answer, name, path):
+        if not answer:
+            return
+        try:
+            from Screens.Console import Console
+            self.session.openWithCallback(
+                self.ask_restart, Console, title=str(name), cmdlist=[install_command(path)])
+        except Exception as e:
+            self.session.open(MessageBox, "خطأ أثناء التثبيت: " + str(e), MessageBox.TYPE_ERROR)
+
+    def ask_restart(self, *args):
+        self.session.openWithCallback(
+            self.do_restart, MessageBox,
+            "هل تريد إعادة تشغيل الواجهة (GUI) الآن؟", MessageBox.TYPE_YESNO, default=False)
+
+    def do_restart(self, answer):
+        if answer:
+            from Screens.Standby import TryQuitMainloop
+            self.session.open(TryQuitMainloop, 3)
+
     def cancel_pressed(self):
+        self._scanning = False
         if self.current_menu == "sub":
             self.show_main()
         else:
