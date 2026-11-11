@@ -486,7 +486,7 @@ class AnowPanelMainScreen(Screen):
             content = data.decode("utf-8", errors="ignore")
             self.main_menu, self.menu_data = parse_content(content)
             if self.main_menu:
-                self.main_menu = [(INSTALL_SECTION, INSTALL_TARGET)] + list(self.main_menu)
+                self.main_menu = list(self.main_menu) + [(INSTALL_SECTION, INSTALL_TARGET)]
                 self.show_main()
             else:
                 self["title_label"].setText("⚠ تنبيه")
