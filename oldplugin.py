@@ -110,7 +110,7 @@ SECTION_ICONS = {
     "ajpanel_cmd": "commandsfile",
     "init codes": "power",
     "install files": "opkginstall",
-    "online ipk install": "opkginstall",
+    "online files install": "opkginstall",
 }
 
 ITEM_ICONS = {
@@ -128,7 +128,7 @@ ITEM_ICONS = {
     "init 4": "power",
     "init 6": "power",
     "install files": "opkginstall",
-    "online ipk install": "opkginstall",
+    "online files install": "opkginstall",
 }
 
 SECTION_FALLBACK_ICONS = {
@@ -152,8 +152,8 @@ COMMAND_PREFIX_ICONS = (
 # ---------------------------------------------------------------------------
 INSTALL_SECTION = "Install Files"
 INSTALL_TARGET = "__install_files__"
-ONLINE_INSTALL_SECTION = "Online IPK Install"
-ONLINE_INSTALL_TARGET = "__online_ipk_install__"
+ONLINE_INSTALL_SECTION = "Online Files Install"
+ONLINE_INSTALL_TARGET = "__online_files_install__"
 
 INSTALL_EXTS = (".ipk", ".tar.gz", ".tgz")
 SCAN_SKIP_DIRS = ("movie", "picon", "epg", "timeshift", "lost+found")
@@ -194,8 +194,8 @@ def find_install_files(roots=None, max_depth=SCAN_MAX_DEPTH):
     return found[:SCAN_MAX_FILES]
 
 
-def fetch_github_ipk_files():
-    """Fetch files list from GitHub API directory and filter .ipk files"""
+def fetch_github_install_files():
+    """Fetch files list from GitHub API directory and filter .ipk, .tar.gz, .tgz files"""
     try:
         req = urllib.request.Request(GITHUB_API_URL, headers={"User-Agent": "Enigma2 AnowPanel"})
         try:
@@ -205,15 +205,15 @@ def fetch_github_ipk_files():
             response = urllib.request.urlopen(req, timeout=10, context=ctx).read()
         
         files_data = json.loads(response.decode("utf-8", errors="ignore"))
-        ipk_list = []
+        supported_list = []
         for item in files_data:
-            if item.get("type") == "file" and item.get("name", "").lower().endswith(".ipk"):
-                name = item.get("name")
+            if item.get("type") == "file":
+                name = item.get("name", "")
                 download_url = item.get("download_url")
-                if name and download_url:
-                    ipk_list.append((name, download_url))
-        ipk_list.sort(key=lambda item: item[0].lower())
-        return ipk_list
+                if name and download_url and name.lower().endswith(INSTALL_EXTS):
+                    supported_list.append((name, download_url))
+        supported_list.sort(key=lambda item: item[0].lower())
+        return supported_list
     except Exception as e:
         print("AnowPanel GitHub API Error:", str(e))
         return []
@@ -438,7 +438,7 @@ class AnowPanelMainScreen(Screen):
             self.main_menu, self.menu_data = parse_content(content)
             if self.main_menu:
                 self.main_menu = list(self.main_menu) + [
-                    ("Online IPK Install", ONLINE_INSTALL_TARGET),
+                    ("Online Files Install", ONLINE_INSTALL_TARGET),
                     (INSTALL_SECTION, INSTALL_TARGET)
                 ]
                 self.show_main()
@@ -468,7 +468,7 @@ class AnowPanelMainScreen(Screen):
             if target == INSTALL_TARGET:
                 info = "Local IPK / TAR.GZ"
             elif target == ONLINE_INSTALL_TARGET:
-                info = "GitHub Online IPK Folder"
+                info = "GitHub Online Folder (IPK & Tar.gz)"
             else:
                 info = "%d أمر" % len(self.menu_data.get(target, []))
         elif self.current_section == INSTALL_SECTION:
@@ -477,7 +477,7 @@ class AnowPanelMainScreen(Screen):
             except Exception:
                 info = os.path.dirname(target)
         elif self.current_section == ONLINE_INSTALL_SECTION:
-            info = "GitHub Direct Link"
+            info = "GitHub Direct Link (" + ("IPK" if target.endswith(".ipk") else "TAR.GZ") + ")"
         else:
             info = self.current_section
         name = str(name)
@@ -524,7 +524,7 @@ class AnowPanelMainScreen(Screen):
         elif self.current_section == INSTALL_SECTION:
             self.install_file(selection_name, selection_target)
         elif self.current_section == ONLINE_INSTALL_SECTION:
-            self.install_online_ipk(selection_name, selection_target)
+            self.install_online_file(selection_name, selection_target)
         else:
             self.execute_command(selection_name, selection_target)
 
@@ -579,17 +579,17 @@ class AnowPanelMainScreen(Screen):
         self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
         self.session.open(MessageBox, "خطأ أثناء البحث عن الملفات: " + str(error), MessageBox.TYPE_ERROR)
 
-    # --- Online IPK Functions ---
+    # --- Online Files (IPK & Tar.gz) Functions ---
     def open_online_install_files(self):
-        self["hint_label"].setText("⏳ جاري جلب ملفات IPK من GitHub...")
-        d = deferToThread(fetch_github_ipk_files)
+        self["hint_label"].setText("⏳ جاري جلب الملفات من GitHub...")
+        d = deferToThread(fetch_github_install_files)
         d.addCallback(self.online_files_found)
         d.addErrback(self.online_scan_failed)
 
     def online_files_found(self, files):
         if not files:
             self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
-            self.session.open(MessageBox, "لم يتم العثور على أي ملفات IPK في المجلد المحدد على GitHub.", MessageBox.TYPE_INFO)
+            self.session.open(MessageBox, "لم يتم العثور على أي ملفات IPK أو Tar.gz في المجلد المحدد على GitHub.", MessageBox.TYPE_INFO)
             return
         self.menu_data[ONLINE_INSTALL_TARGET] = files
         self.current_menu = "sub"
@@ -604,23 +604,30 @@ class AnowPanelMainScreen(Screen):
         self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
         self.session.open(MessageBox, "خطأ أثناء الاتصال بـ GitHub: " + str(error), MessageBox.TYPE_ERROR)
 
-    def install_online_ipk(self, name, url):
+    def install_online_file(self, name, url):
+        is_ipk = name.lower().endswith(".ipk")
+        msg = "هل تريد تحميل وتثبيت هذا الملف عبر الإنترنت؟\n\n" + str(name)
+        if not is_ipk:
+            msg += "\n\n(ملاحظة: هذا الملف سيتم فك ضغطه على جذر النظام /)"
         self.session.openWithCallback(
-            lambda answer: self.run_online_install(answer, name, url),
+            lambda answer: self.run_online_install(answer, name, url, is_ipk),
             MessageBox,
-            "هل تريد تحميل وتثبيت هذا البلجن عبر الإنترنت؟\n\n" + str(name),
+            msg,
             MessageBox.TYPE_YESNO,
             default=False,
         )
 
-    def run_online_install(self, answer, name, url):
+    def run_online_install(self, answer, name, url, is_ipk):
         if not answer:
             return
         try:
             from Screens.Console import Console
-            # Download file using wget to /tmp and then install it via opkg
             tmp_file = "/tmp/" + name
-            cmd = f"wget -O {quote(tmp_file)} {quote(url)} && opkg install {quote(tmp_file)}"
+            if is_ipk:
+                cmd = f"wget -O {quote(tmp_file)} {quote(url)} && opkg install {quote(tmp_file)}"
+            else:
+                cmd = f"wget -O {quote(tmp_file)} {quote(url)} && tar -xzf {quote(tmp_file)} -C /"
+            
             self.session.openWithCallback(
                 self.ask_restart, Console, title="تثبيت: " + str(name), cmdlist=[cmd])
         except Exception as e:
@@ -642,6 +649,7 @@ class AnowPanelMainScreen(Screen):
         if not answer:
             return
         try:
+            from Screens.Console::Console if False else ... # fallback handling
             from Screens.Console import Console
             self.session.openWithCallback(
                 self.ask_restart, Console, title=str(name), cmdlist=[install_command(path)])
