@@ -16,7 +16,9 @@ import re
 import glob
 from shlex import quote
 import ssl
+import json
 import urllib.request
+from urllib.parse import quote as urlquote, unquote as urlunquote
 
 try:
     from Components.MultiContent import MultiContentEntryText, MultiContentEntryPixmapAlphaBlend
@@ -109,6 +111,7 @@ SECTION_ICONS = {
     "ajpanel_cmd": "commandsfile",
     "init codes": "power",
     "install files": "opkginstall",
+    "github files": "download",
 }
 
 # Command labels are matched exactly (case-insensitive); no broad substring
@@ -269,11 +272,82 @@ def install_command(path):
     return "tar -xzf %s -C /" % quote(path)
 
 
+# ---------------------------------------------------------------------------
+# "GitHub Files": list the .ipk / .tar.gz files of a GitHub folder, download
+# the chosen one to /tmp, install it, then delete the temporary copy
+# ---------------------------------------------------------------------------
+GH_SECTION = "GitHub Files"
+GH_TARGET = "__github_files__"
+GH_USER_REPO = "anow2008/ajpanel_cmd"
+GH_BRANCH = "main"
+GH_FOLDER = "file"
+GH_API_URL = "https://api.github.com/repos/%s/contents/%s?ref=%s" % (GH_USER_REPO, GH_FOLDER, GH_BRANCH)
+GH_PAGE_URL = "https://github.com/%s/tree/%s/%s" % (GH_USER_REPO, GH_BRANCH, GH_FOLDER)
+GH_RAW_BASE = "https://raw.githubusercontent.com/%s/%s/%s/" % (GH_USER_REPO, GH_BRANCH, GH_FOLDER)
+
+
+def _is_install_name(name):
+    return str(name).lower().endswith(INSTALL_EXTS)
+
+
+def parse_github_api(data):
+    """GitHub contents API (JSON) -> [(name, raw url, size)] (files only)."""
+    items = json.loads(data.decode("utf-8", errors="ignore"))
+    out = []
+    if isinstance(items, list):
+        for it in items:
+            name = it.get("name", "")
+            if it.get("type") == "file" and _is_install_name(name):
+                url = it.get("download_url") or (GH_RAW_BASE + urlquote(name))
+                out.append((name, url, int(it.get("size") or 0)))
+    return out
+
+
+def parse_github_html(text):
+    """Fallback: read the file names from the folder's web page."""
+    pattern = r'/%s/blob/%s/%s/([^"?#<>\s]+)' % (re.escape(GH_USER_REPO), re.escape(GH_BRANCH), re.escape(GH_FOLDER))
+    names, out = set(), []
+    for m in re.findall(pattern, text):
+        name = urlunquote(m)
+        if "/" not in name and name not in names and _is_install_name(name):
+            names.add(name)
+            out.append((name, GH_RAW_BASE + urlquote(name), 0))
+    return out
+
+
+def fetch_github_files():
+    """Blocking (runs in a thread). Tries the API first, then the web page."""
+    errors = []
+    for url, parser in ((GH_API_URL, parse_github_api), (GH_PAGE_URL, None)):
+        try:
+            data = download(url)
+            files = parser(data) if parser else parse_github_html(data.decode("utf-8", errors="ignore"))
+            if files:
+                files.sort(key=lambda x: x[0].lower())
+                return files
+            errors.append("no files")
+        except Exception as e:
+            errors.append(str(e))
+    if all(e == "no files" for e in errors):
+        return []
+    raise IOError("; ".join(errors))
+
+
+def online_install_command(name, url):
+    """Download to /tmp, install, then always remove the temporary copy."""
+    tmp = "/tmp/" + re.sub(r"[^A-Za-z0-9._-]", "_", str(name))
+    if tmp.lower().endswith(".ipk"):
+        inst = "opkg install %s" % quote(tmp)
+    else:
+        inst = "tar -xzf %s -C /" % quote(tmp)
+    return "wget --no-check-certificate -O %s %s && %s; rm -f %s" % (quote(tmp), quote(url), inst, quote(tmp))
+
+
 def icon_for(name, kind="command", section=None, target=None):
     key = _icon_key(name)
     if kind == "section":
         return SECTION_ICONS.get(key, "folder")
-    if _icon_key(section) == _icon_key(INSTALL_SECTION):
+    if _icon_key(section) in (_icon_key(INSTALL_SECTION), _icon_key(GH_SECTION)):
         return "opkginstall" if str(target).lower().endswith(".ipk") else "archive"
     exact = ITEM_ICONS.get(key)
     if exact:
@@ -500,6 +574,7 @@ class AnowPanelMainScreen(Screen):
         self.current_menu = "main"
         self.current_section = ""
         self._scanning = False
+        self.gh_sizes = {}
         self["menu_list"] = IconList()
         self["menu_list"].onSelectionChanged.append(self.update_preview)
 
@@ -527,7 +602,7 @@ class AnowPanelMainScreen(Screen):
             content = data.decode("utf-8", errors="ignore")
             self.main_menu, self.menu_data = parse_content(content)
             if self.main_menu:
-                self.main_menu = list(self.main_menu) + [(INSTALL_SECTION, INSTALL_TARGET)]
+                self.main_menu = list(self.main_menu) + [(INSTALL_SECTION, INSTALL_TARGET), (GH_SECTION, GH_TARGET)]
                 self.show_main()
             else:
                 self["title_label"].setText("⚠ تنبيه")
@@ -554,10 +629,13 @@ class AnowPanelMainScreen(Screen):
             return
         name, target, icon = selected[0][0], selected[0][1], selected[0][2]
         if self.current_menu == "main":
-            if target == INSTALL_TARGET:
+            if target in (INSTALL_TARGET, GH_TARGET):
                 info = "IPK / TAR.GZ"
             else:
                 info = "%d أمر" % len(self.menu_data.get(target, []))
+        elif self.current_section == GH_SECTION:
+            size = self.gh_sizes.get(target, 0)
+            info = (human_size(size) + "\n" if size else "") + GH_USER_REPO
         elif self.current_section == INSTALL_SECTION:
             try:
                 info = human_size(os.path.getsize(target)) + "\n" + os.path.dirname(target)
@@ -597,6 +675,8 @@ class AnowPanelMainScreen(Screen):
         if self.current_menu == "main":
             if selection_target == INSTALL_TARGET:
                 self.open_install_files()
+            elif selection_target == GH_TARGET:
+                self.open_github_files()
             elif selection_target in self.menu_data and self.menu_data[selection_target]:
                 self.current_menu = "sub"
                 self.current_section = selection_name
@@ -607,6 +687,8 @@ class AnowPanelMainScreen(Screen):
                 self.update_preview()
         elif self.current_section == INSTALL_SECTION:
             self.install_file(selection_name, selection_target)
+        elif self.current_section == GH_SECTION:
+            self.install_online_file(selection_name, selection_target)
         else:
             self.execute_command(selection_name, selection_target)
 
@@ -677,14 +759,62 @@ class AnowPanelMainScreen(Screen):
         )
 
     def run_install(self, answer, name, path):
-        if not answer:
-            return
+        if answer:
+            self.run_console_install(name, install_command(path))
+
+    def run_console_install(self, name, cmd):
         try:
             from Screens.Console import Console
             self.session.openWithCallback(
-                self.ask_restart, Console, title=str(name), cmdlist=[install_command(path)])
+                self.ask_restart, Console, title=str(name), cmdlist=[cmd])
         except Exception as e:
             self.session.open(MessageBox, "خطأ أثناء التثبيت: " + str(e), MessageBox.TYPE_ERROR)
+
+    # ------------------------------------------------------------ github files
+    def open_github_files(self):
+        self._scanning = True
+        self["hint_label"].setText("⏳ جاري جلب قائمة الملفات من GitHub ...")
+        d = deferToThread(fetch_github_files)
+        d.addCallback(self.github_files_found)
+        d.addErrback(self.github_fetch_failed)
+
+    def github_files_found(self, files):
+        if not self._scanning:
+            return
+        self._scanning = False
+        if not files:
+            self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
+            self.session.open(MessageBox, "لا توجد ملفات ipk أو tar.gz في المجلد على GitHub", MessageBox.TYPE_INFO)
+            return
+        self.gh_sizes = dict((url, size) for _name, url, size in files)
+        items = [(name, url) for name, url, _size in files]
+        self.menu_data[GH_TARGET] = items
+        self.current_menu = "sub"
+        self.current_section = GH_SECTION
+        self["title_label"].setText("قسم: " + GH_SECTION)
+        self["hint_label"].setText("☁ OK للتحميل والتثبيت  |  Cancel للعودة")
+        self["menu_list"].build(items, "command", GH_SECTION)
+        self["menu_list"].moveToIndex(0)
+        self.update_preview()
+
+    def github_fetch_failed(self, error):
+        self._scanning = False
+        self["hint_label"].setText("📡 OK للدخول  |  الأخضر للتحديث  |  الأحمر للخروج")
+        self.session.open(MessageBox, "تعذر جلب الملفات من GitHub.\nتأكد من الإنترنت ثم حاول مرة أخرى.",
+                          MessageBox.TYPE_ERROR)
+
+    def install_online_file(self, name, url):
+        text = "هل تريد تحميل وتثبيت هذا الملف؟\n\n" + str(name)
+        if not str(name).lower().endswith(".ipk"):
+            text += "\n\nسيتم فك الضغط على النظام (/)"
+        self.session.openWithCallback(
+            lambda answer: self.run_online_install(answer, name, url),
+            MessageBox, text, MessageBox.TYPE_YESNO, default=False,
+        )
+
+    def run_online_install(self, answer, name, url):
+        if answer:
+            self.run_console_install(name, online_install_command(name, url))
 
     def ask_restart(self, *args):
         self.session.openWithCallback(
